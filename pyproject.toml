@@ -1,0 +1,23 @@
+[project]
+name = "google-nest-as-speaker"
+version = "0.1.0"
+description = "Native macOS audio player and CLI for Google Nest, Google Home, and Chromecast speakers"
+readme = "README.md"
+license = "MIT"
+requires-python = ">=3.11"
+dependencies = [
+    "pychromecast==14.1.0",
+]
+
+[project.urls]
+Repository = "https://github.com/htlin222/google-nest-as-speaker"
+Releases = "https://github.com/htlin222/google-nest-as-speaker/releases"
+Issues = "https://github.com/htlin222/google-nest-as-speaker/issues"
+
+[dependency-groups]
+dev = [
+    "pyinstaller==6.22.0",
+]
+
+[tool.uv]
+package = false

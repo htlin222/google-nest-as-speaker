@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+exec uv run --project "$repo_dir" python \
+  "$repo_dir/.agents/skills/google-nest-speaker/scripts/nest_speaker.py" "$@"

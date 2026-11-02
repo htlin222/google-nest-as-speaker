@@ -1,0 +1,6 @@
+#!/bin/sh
+set -eu
+
+repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+export NEST_PLAYER_REPO_ROOT="$repo_dir"
+exec swift run --package-path "$repo_dir" NestPlayer

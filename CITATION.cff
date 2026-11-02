@@ -1,0 +1,24 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+type: software
+title: "Nest Player: macOS audio player for Google Nest and Chromecast speakers"
+version: 0.1.0
+date-released: "2026-11-03"
+url: "https://github.com/htlin222/google-nest-as-speaker"
+repository-code: "https://github.com/htlin222/google-nest-as-speaker"
+license: MIT
+authors:
+  - family-names: "Lin"
+    given-names: "Hsieh-Ting"
+    orcid: "https://orcid.org/0009-0002-3974-4528"
+keywords:
+  - macOS
+  - Google Cast
+  - Google Nest
+  - Chromecast
+  - audio player
+  - SwiftUI
+abstract: >-
+  A native macOS media player and command-line tool for playing local audio
+  and video soundtracks on Google Nest and Google Cast speakers, with local
+  video, playlists, optional dual audio output, and cached media conversion.
