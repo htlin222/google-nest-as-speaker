@@ -4,6 +4,7 @@ import importlib.util
 from pathlib import Path
 import shutil
 import subprocess
+import sys
 import tempfile
 import threading
 import time
@@ -23,6 +24,7 @@ SCRIPT = (
 )
 SPEC = importlib.util.spec_from_file_location("nest_speaker", SCRIPT)
 assert SPEC and SPEC.loader
+sys.path.insert(0, str(SCRIPT.parent))
 nest_speaker = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(nest_speaker)
 

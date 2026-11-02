@@ -42,6 +42,14 @@ struct BackendMessage: Codable, Sendable {
     let volume: Int?
     let reason: String?
     let cached: Bool?
+    let title: String?
+    let site: String?
+    let localAudioURL: String?
+    let localVideoURL: String?
+    let remoteURL: String?
+    let pairingCode: String?
+    let action: String?
+    let value: String?
 }
 
 enum CastBackendError: LocalizedError {

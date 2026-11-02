@@ -1,9 +1,15 @@
+import AppKit
 import SwiftUI
 import UniformTypeIdentifiers
 
 struct ContentView: View {
     @Environment(PlayerModel.self) private var model
     @State private var showImporter = false
+    @State private var importingFolder = false
+    @State private var showSMB = false
+    @State private var chooseFolderAfterSMB = false
+    @State private var showRemote = false
+    @State private var linkText = ""
     @State private var isSeeking = false
     @State private var scrubPosition = 0.0
 
@@ -12,12 +18,39 @@ struct ContentView: View {
 
         NavigationSplitView {
             VStack(spacing: 0) {
+                VStack(spacing: 8) {
+                    TextField("YouTube or Bilibili link", text: $linkText)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit { if model.addLinks(from: linkText) { linkText = "" } }
+                    HStack {
+                        Button("Paste & Play", systemImage: "doc.on.clipboard") { pasteLink() }
+                        Spacer()
+                        Button("Add") {
+                            if model.addLinks(from: linkText, playFirst: false) { linkText = "" }
+                        }.disabled(linkText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                    }
+                    .buttonStyle(.borderless)
+                    if model.isScanningFolder {
+                        HStack {
+                            ProgressView().controlSize(.small)
+                            Text("Scanning folder…").font(.caption)
+                            Spacer()
+                            Button("Cancel") { model.cancelFolderScan() }.buttonStyle(.borderless)
+                        }
+                    }
+                }.padding(12)
+                Divider()
                 List(selection: $model.selectedTrackID) {
                     ForEach(model.playlist) { track in
-                        TrackRow(track: track, isPlaying: model.selectedTrackID == track.id && model.phase.isActive)
+                        TrackRow(track: track, isPlaying: model.activeTrack?.id == track.id && model.phase.isActive)
                             .tag(track.id)
                             .contentShape(Rectangle())
                             .onTapGesture(count: 2) { model.play(track: track) }
+                            .contextMenu {
+                                if MediaLinks.site(for: track.url) != nil {
+                                    Button("Sign in to \(MediaLinks.site(for: track.url) ?? "website")…") { model.showWebsiteLogin(for: track) }
+                                }
+                            }
                     }
                     .onMove(perform: model.moveTracks)
                 }
@@ -33,10 +66,14 @@ struct ContentView: View {
 
                 Divider()
                 HStack {
-                    Button { showImporter = true } label: {
+                    Menu {
+                        Button("Add Files…") { importingFolder = false; showImporter = true }
+                        Button("Add Folder…") { importingFolder = true; showImporter = true }
+                        Button("Connect SMB Folder…") { showSMB = true }
+                    } label: {
                         Label("Add", systemImage: "plus")
                     }
-            .help("Add audio or video files")
+                    .help("Add files, a folder, or an SMB share")
 
                     Button { model.removeSelectedTrack() } label: {
                         Image(systemName: "minus")
@@ -59,16 +96,31 @@ struct ContentView: View {
         .toolbar { deviceToolbar }
         .fileImporter(
             isPresented: $showImporter,
-            allowedContentTypes: [.audio, .audiovisualContent],
-            allowsMultipleSelection: true
+            allowedContentTypes: importingFolder ? [.folder] : [.audio, .audiovisualContent],
+            allowsMultipleSelection: !importingFolder
         ) { result in
             switch result {
-            case .success(let urls): model.importSecurityScoped(urls)
+            case .success(let urls):
+                if importingFolder, let folder = urls.first { model.addFolder(folder) }
+                else { model.importSecurityScoped(urls) }
             case .failure(let error): model.statusDetail = error.localizedDescription
             }
         }
+        .sheet(item: $model.authenticationRequest) { request in WebsiteLoginSheet(request: request) }
+        .sheet(isPresented: $showSMB, onDismiss: {
+            if chooseFolderAfterSMB {
+                chooseFolderAfterSMB = false
+                importingFolder = true
+                showImporter = true
+            }
+        }) { SMBConnectionSheet { chooseFolderAfterSMB = true } }
+        .sheet(isPresented: $showRemote) { PhoneRemoteSheet() }
+        .onPasteCommand(of: [.plainText, .url]) { _ in pasteLink() }
         .dropDestination(for: URL.self) { urls, _ in
-            model.addTracks(urls)
+            for url in urls {
+                if url.isFileURL, (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true { model.addFolder(url) }
+                else { model.addTracks([url]) }
+            }
             return !urls.isEmpty
         } isTargeted: { model.isDropTarget = $0 }
         .overlay {
@@ -82,6 +134,10 @@ struct ContentView: View {
         }
         .onChange(of: model.currentTime) { _, newValue in
             if !isSeeking { scrubPosition = newValue }
+        }
+        .onChange(of: model.remoteSnapshot, initial: true) { _, _ in model.publishRemoteState() }
+        .onAppear {
+            if ProcessInfo.processInfo.arguments.contains("--phone-remote") { showRemote = true }
         }
         .frame(minWidth: 820, minHeight: 560)
     }
@@ -116,7 +172,7 @@ struct ContentView: View {
 
     @ViewBuilder
     private var mediaDisplay: some View {
-        if model.displayedTrack?.isVideo == true {
+        if model.showsVideo {
             PlayerLayerView(player: model.localPlayer)
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .frame(maxWidth: 640, maxHeight: 340)
@@ -264,7 +320,23 @@ struct ContentView: View {
                 Image(systemName: "dot.radiowaves.left.and.right")
             }
             .help("Find Cast speakers")
+
+            Button { showRemote = true } label: { Label("Phone Remote", systemImage: "qrcode") }
+                .help("Control from iPhone over your local network")
+
+            Menu {
+                Button("Connect SMB Folder…") { showSMB = true }
+                Button("Forget Website Browser Access") { model.forgetWebsiteSessions() }
+            } label: { Image(systemName: "ellipsis.circle") }
         }
+    }
+
+    private func pasteLink() {
+        guard let text = NSPasteboard.general.string(forType: .string) else {
+            model.statusDetail = "Copy a YouTube or Bilibili video link first."
+            return
+        }
+        if model.addLinks(from: text) { linkText = "" }
     }
 }
 

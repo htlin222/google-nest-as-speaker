@@ -14,6 +14,8 @@ Use the repository's `./nest-speaker` command. Run it from the repository root.
 2. For a local audio or video file, resolve it to an absolute path and run
    `./nest-speaker --device '<friendly name>' play '<absolute path>'`.
 3. For an HTTP(S) media URL, pass the URL to the same `play` command.
+   YouTube and Bilibili video/share URLs are resolved with bundled yt-dlp before
+   audio is relayed to Cast. YouTube requires a supported Deno or Node runtime.
 4. Keep a local-file play command running until playback finishes. The command
    owns a temporary HTTP server needed by the Nest. If a long playback must run
    beyond the current shell session, use the shell's supported persistent
@@ -23,6 +25,18 @@ Use the repository's `./nest-speaker` command. Run it from the repository root.
 
 Use `status`, `pause`, `resume`, `seek`, and `stop` for playback control. Use
 `volume 0..100` only when the user explicitly asks to change volume.
+
+## Native app sources and remote
+
+- Paste website links with **Paste & Play**, or use **Add** to queue them.
+- For account-required videos, use the app's browser sign-in sheet. Only pass
+  CLI `play --browser <name>` after explicit authorization to read that browser's
+  session. Never extract personal cookies automatically as a diagnostic.
+- Use **Add Folder** for local directories or **Connect SMB Folder** to let
+  Finder handle network-share login, then choose the mounted folder.
+- **Phone Remote** shows a LAN URL, QR capability link, and pairing code. Keep
+  the app open and the Mac awake. Do not publish pairing codes or token URLs in
+  Git, screenshots, logs, or public documentation.
 
 ## Important constraints
 

@@ -1,6 +1,6 @@
 # Nest Player Product and Technical Specification
 
-- **Status:** v0.1.0 implementation; Cloudflare extension remains proposed
+- **Status:** v0.2.0 implementation; Cloudflare extension remains proposed
 - **Last updated:** 2026-11-03
 - **Target platform:** macOS 14 or later
 - **Primary Cast target:** Google Nest Mini and Google Cast audio groups
@@ -276,6 +276,28 @@ older generations are discarded. Playback emits events such as `transcoding`,
   Cast error/cancellation are failures and never auto-advance the playlist.
 
 ## 9. Cloudflare remote-control extension
+
+The implemented LAN phone controller is distinct from this future cloud design.
+It is hosted by the local service, uses a QR capability link or rate-limited
+six-digit pairing code, and emits allowlisted player commands to the Mac model.
+
+### Implemented media sources in v0.2.0
+
+- YouTube/Bilibili links are normalized and stored as URLs in playlist records.
+- A cancellable resolver subprocess embeds pinned yt-dlp and EJS scripts, with
+  an external Deno/Node runtime. Public content is tried without browser cookies.
+- Account-required responses open a native browser-session consent sheet; the
+  app opens the chosen browser and retries only after explicit consent.
+- Signed audio/video URLs and cookies remain in memory. A local relay supplies
+  byte ranges and privately forwards required CDN headers. Completed response
+  bodies use a separate 512 MB LRU cache budget; secret headers are not cached.
+- Online audio plays on Cast. H.264 preview up to 720p plays on the Mac; an
+  additional local audio player is created only when Mac audio is enabled.
+- Local/SMB folders scan in the background with a 10,000-file limit. Finder owns
+  SMB authentication and mounting. Offline entries persist for reconnection.
+- The phone controller is reachable on LAN port 8989 (or an available fallback),
+  polls while visible, and pauses polling when hidden. No remote filesystem or
+  shell-command API is exposed.
 
 ### 9.1 Purpose
 

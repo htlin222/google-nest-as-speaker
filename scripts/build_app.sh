@@ -17,6 +17,9 @@ uv run --locked --project "$repo_dir" --group dev pyinstaller \
   --onedir \
   --contents-directory . \
   --recursive-copy-metadata pychromecast \
+  --recursive-copy-metadata yt-dlp \
+  --collect-all yt_dlp \
+  --collect-all yt_dlp_ejs \
   --copy-metadata setuptools \
   --copy-metadata pyinstaller \
   --name nest-service \

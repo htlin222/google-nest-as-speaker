@@ -1,12 +1,13 @@
 [project]
 name = "google-nest-as-speaker"
-version = "0.1.0"
+version = "0.2.0"
 description = "Native macOS audio player and CLI for Google Nest, Google Home, and Chromecast speakers"
 readme = "README.md"
 license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "pychromecast==14.1.0",
+    "yt-dlp[default]==2026.10.26",
 ]
 
 [project.urls]

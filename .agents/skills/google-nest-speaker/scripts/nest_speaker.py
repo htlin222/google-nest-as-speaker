@@ -25,6 +25,8 @@ from urllib.parse import quote, urlsplit
 
 import pychromecast
 from pychromecast.controllers.media import STREAM_TYPE_BUFFERED
+from online_media import OnlineError, OnlineRelay, extract_streams, resolve_in_child, website_name
+from remote_control import RemoteController
 
 
 DEFAULT_DEVICE = os.environ.get("NEST_SPEAKER_DEVICE", "客廳")
@@ -478,6 +480,25 @@ def play_media(args: argparse.Namespace) -> int:
         if args.volume is not None:
             cast.receiver_controller.set_volume(args.volume / 100.0, timeout=args.timeout)
 
+        if website_name(args.source):
+            cancel = threading.Event()
+            try:
+                emit(args, "resolving", f"Loading {website_name(args.source)}…", site=website_name(args.source))
+                online = resolve_in_child(args.source, args.browser, cancel)
+                with OnlineRelay(online, cache_root(), cancel) as relay:
+                    info = cast.cast_info
+                    media_url = relay.url("audio", local_ip_for_peer(str(info.host), int(info.port)))
+                    cast.media_controller.play_media(
+                        media_url, online["audio"]["contentType"],
+                        title=args.title or online["title"], stream_type=STREAM_TYPE_BUFFERED,
+                    )
+                    wait_for_playback(cast, args.start_timeout, args)
+                    return 0
+            except KeyboardInterrupt:
+                cancel.set()
+                cast.media_controller.stop()
+                return 130
+
         if is_media_url(args.source):
             content_type = args.content_type or guess_content_type(args.source)
             emit(
@@ -689,6 +710,8 @@ class NestPlayerService:
         self.stop_event = threading.Event()
         self.generation = 0
         self.closed = False
+        self.resolved_online: dict[tuple[str, str | None], tuple[float, dict]] = {}
+        self.remote: RemoteController | None = None
 
     def emit(self, event: str, **fields: object) -> None:
         with self.output_lock:
@@ -826,7 +849,32 @@ class NestPlayerService:
             title = str(request.get("title") or Path(source_value).stem)
 
             with contextlib.ExitStack() as stack:
-                if is_media_url(source_value):
+                if website_name(source_value):
+                    event("resolving", site=website_name(source_value))
+                    browser = str(request["browser"]) if request.get("browser") else None
+                    cache_key = (source_value, browser)
+                    cached = self.resolved_online.get(cache_key)
+                    if cached and time.monotonic() - cached[0] < 120:
+                        online = cached[1]
+                    else:
+                        online = resolve_in_child(source_value, browser, stop_event)
+                        self.resolved_online[cache_key] = (time.monotonic(), online)
+                        while len(self.resolved_online) > 8:
+                            self.resolved_online.pop(next(iter(self.resolved_online)))
+                    if stop_event.is_set():
+                        return
+                    relay = stack.enter_context(OnlineRelay(online, cache_root(), stop_event))
+                    info = cast.cast_info
+                    local_ip = local_ip_for_peer(str(info.host), int(info.port))
+                    media_url = relay.url("audio", local_ip)
+                    content_type = online["audio"]["contentType"]
+                    title = str(online["title"])
+                    event(
+                        "onlineReady", title=title, duration=online.get("duration"),
+                        localAudioURL=relay.url("audio"), localVideoURL=relay.url("video"),
+                        site=online.get("site"),
+                    )
+                elif is_media_url(source_value):
                     media_url = source_value
                     content_type = str(request.get("contentType") or guess_content_type(source_value))
                 else:
@@ -853,6 +901,12 @@ class NestPlayerService:
                 controller = cast.media_controller
                 controller.play_media(media_url, content_type, title=title, stream_type=STREAM_TYPE_BUFFERED)
                 self.monitor_owned_playback(controller, media_url, generation, stop_event, float(request.get("startTimeout", 30)))
+        except OnlineError as error:
+            if not stop_event.is_set():
+                event(
+                    "authenticationRequired" if error.authentication else "failed",
+                    message=str(error), site=website_name(str(request.get("source", ""))),
+                )
         except Exception as error:
             if not stop_event.is_set():
                 event("failed", message=str(error))
@@ -925,7 +979,19 @@ class NestPlayerService:
         request_id = str(request.get("id", ""))
         command = str(request.get("command", ""))
         try:
-            if command == "list":
+            if command == "forgetWebsiteSessions":
+                self.resolved_online.clear()
+                self.respond(request_id)
+            elif command == "remoteInfo":
+                if self.remote is None:
+                    self.remote = RemoteController(self.emit)
+                self.respond(request_id, **self.remote.info())
+            elif command == "remoteState":
+                state = json.loads(str(request.get("state", "{}")))
+                if self.remote is not None and isinstance(state, dict):
+                    self.remote.update(state)
+                self.respond(request_id)
+            elif command == "list":
                 devices = self.discover(
                     str(request["device"]) if request.get("device") else None,
                     str(request["host"]) if request.get("host") else None,
@@ -983,6 +1049,7 @@ class NestPlayerService:
         self.respond(request_id)
 
     def run(self) -> int:
+        self.remote = RemoteController(self.emit)
         self.emit("serviceReady", pid=os.getpid(), cache=str(cache_root()))
         try:
             for line in sys.stdin:
@@ -997,6 +1064,8 @@ class NestPlayerService:
         finally:
             self.stop_playback(self.generation + 1)
             self.disconnect()
+            if self.remote is not None:
+                self.remote.close()
         return 0
 
 
@@ -1027,6 +1096,9 @@ def build_parser() -> argparse.ArgumentParser:
     subparsers = parser.add_subparsers(dest="command", required=True)
     subparsers.add_parser("list", help="discover Cast devices")
     subparsers.add_parser("service", help="run the persistent JSON-lines app backend")
+    resolve = subparsers.add_parser("resolve-online", help="resolve a YouTube or Bilibili video without playing")
+    resolve.add_argument("source")
+    resolve.add_argument("--browser", choices=sorted({"chrome", "chromium", "edge", "brave", "firefox", "safari"}))
 
     play = subparsers.add_parser("play", help="play a local audio file or HTTP(S) URL")
     play.add_argument("source", help="audio file path or HTTP(S) media URL")
@@ -1038,6 +1110,7 @@ def build_parser() -> argparse.ArgumentParser:
     play.add_argument("--start-timeout", type=float, default=30.0, help="seconds to wait for PLAYING")
     play.add_argument("--volume", type=percentage, help="set volume to 0..100 before playback")
     play.add_argument("--verbose", action="store_true", help="show HTTP request logs")
+    play.add_argument("--browser", choices=sorted({"chrome", "chromium", "edge", "brave", "firefox", "safari"}), help="explicitly use this browser's website login session")
 
     subparsers.add_parser("status", help="show playback and volume state")
     subparsers.add_parser("pause", help="pause current media")
@@ -1058,10 +1131,17 @@ def main(argv: list[str] | None = None) -> int:
             return list_devices(args)
         if args.command == "service":
             return run_service(args)
+        if args.command == "resolve-online":
+            try:
+                result = {"ok": True, "media": extract_streams(args.source, args.browser)}
+            except OnlineError as error:
+                result = {"ok": False, "error": str(error), "authentication": error.authentication}
+            print(json.dumps(result, ensure_ascii=False), flush=True)
+            return 0 if result["ok"] else 1
         if args.command == "play":
             return play_media(args)
         return control(args)
-    except (CliError, TimeoutError, socket.gaierror) as error:
+    except (CliError, OnlineError, TimeoutError, socket.gaierror) as error:
         print(f"error: {error}", file=sys.stderr)
         return 1
 

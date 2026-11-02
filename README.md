@@ -15,6 +15,9 @@ Google Home, and Chromecast-compatible speakers.** Nest Player is a native
 SwiftUI media player with playlists, local video playback, and Google Cast audio
 output over your local network.
 
+Paste a **YouTube or Bilibili link**, add a local or **SMB network folder**, and
+control playback from an **iPhone browser by scanning a QR code**.
+
 Watch a video on your Mac while its sound plays on a Nest speaker in another
 room. Mac audio is muted by default; enable **Mac audio** for simultaneous output
 from both devices. A Python CLI is included for scripts and automation.
@@ -29,7 +32,7 @@ The prebuilt `.app` requires **macOS 14 Sonoma or later on Apple Silicon
 (M1 or newer)**. An Intel binary is not included in this release.
 
 1. Open [Releases](https://github.com/htlin222/google-nest-as-speaker/releases/latest)
-   and download `Nest-Player-0.1.0-macOS-arm64.zip`.
+   and download `Nest-Player-0.2.0-macOS-arm64.zip`.
 2. Extract the ZIP and move **Nest Player.app** to Applications.
 3. Open the app and allow local-network access if macOS requests it.
 4. Select your Cast speaker, add or drop a media file, then press Play.
@@ -58,11 +61,19 @@ blocks the app and you trust this download, attempt to open it, then use
 Each release includes a SHA-256 file. To verify the download before extracting:
 
 ```bash
-shasum -a 256 -c Nest-Player-0.1.0-macOS-arm64.zip.sha256
+shasum -a 256 -c Nest-Player-0.2.0-macOS-arm64.zip.sha256
 ```
 
 ## Features
 
+- **YouTube and Bilibili:** paste a video link or share text, including short
+  URLs; resolve audio for Cast and up-to-720p H.264 video for the local preview.
+- **Browser-session login:** sign in through the website in your browser, then
+  explicitly allow Nest Player to use that browser session.
+- **Folders and SMB:** import media recursively from local folders or shares
+  mounted by Finder, with background scanning and retained offline entries.
+- **iPhone remote:** scan a QR code or enter the Mac's pairing code in a local
+  browser controller, with transport, seeking, volume, playlist, and link input.
 - **Cast local audio:** stream files to Google Nest, Google Home, and Google
   Cast audio groups without uploading them to a cloud service.
 - **Local video + Cast sound:** watch supported videos on the Mac while their
@@ -79,6 +90,72 @@ shasum -a 256 -c Nest-Player-0.1.0-macOS-arm64.zip.sha256
   button presses do not create new Python processes or install dependencies.
 - **Automation:** use the CLI, JSON output, or the bundled
   [repo skill](.agents/skills/google-nest-speaker/SKILL.md).
+
+## Paste YouTube or Bilibili links
+
+Paste a URL into the sidebar and press Return, or click **Paste & Play**.
+**Add** queues the link without starting it. Cmd-V also works when the playlist
+has focus. Share text and multiple links are accepted; duplicate video links
+are ignored. A video inside a YouTube playlist is treated as one video.
+
+`yt-dlp` and its EJS scripts are bundled. YouTube also needs an external
+JavaScript runtime; Deno is recommended (Node 22+ is supported as an alternative):
+
+```bash
+brew install deno
+```
+
+Playback uses a local range-capable relay, so it can begin after URL resolution
+without waiting for a full-video download. Completed stream responses have a
+separate **512 MB disk-cache budget**. Signed CDN URLs expire; stop and replay
+to resolve a fresh URL if a stream becomes unavailable.
+
+### When a website requires login
+
+1. Nest Player opens a **Sign in** sheet when the extractor reports that account
+   access is required. You can also right-click a website item and choose Sign in.
+2. Choose an installed browser and click **Open in browser**. Complete the site's
+   normal login, Google sign-in, Bilibili QR login, or two-factor verification.
+3. Return to the app and click **Use Session & Play**. This explicitly permits
+   reading that browser's cookies; macOS may request Keychain/file access.
+4. Optionally remember the selected browser for that site until the app quits.
+   **Forget Website Browser Access** clears that permission for future playback.
+
+The app does not collect account passwords or persist browser cookies. Public
+videos are tried without browser access. Login does not remove subscription,
+regional, age, or other access requirements. Live streams and whole-channel /
+playlist imports are not supported yet. Site changes can require a yt-dlp update.
+
+## Local folders and SMB shares
+
+Use **Add → Add Folder…** for a local folder, or **Add → Connect SMB Folder…**
+for a server such as `smb://nas/media`. Finder handles mounting, authentication,
+and optional Keychain storage. Once mounted, click **Choose Mounted Folder…**.
+
+Scanning runs in the background, recursively finds known audio/video extensions,
+skips hidden files and symlinks, sorts naturally, and deduplicates paths. A scan
+is capped at 10,000 files and can be cancelled. Keep the share mounted while
+playing. Offline NAS items stay in the playlist; reconnect through the SMB menu
+and retry playback. No SMB password is entered or stored in Nest Player.
+
+## iPhone browser remote and QR pairing
+
+1. Keep the Mac and iPhone on the same reachable LAN/Wi-Fi.
+2. Click **Phone Remote** in the Mac toolbar.
+3. Scan its QR code with the iPhone camera. The link opens a paired controller.
+4. Alternatively, type the displayed `http://<Mac-LAN-IP>:8989/` address into
+   Safari and enter the six-digit pairing code shown on the Mac.
+
+The controller supports play/pause/stop, previous/next, seeking, Cast volume,
+Mac audio, playlist selection, and **Add & Play** for YouTube/Bilibili links.
+Website login and mounting SMB shares are handled on the Mac.
+
+The server uses port 8989 when available and chooses another free port if needed;
+use the actual address shown in the app. QR links contain an app-session control
+token. Manual pairing is rate limited, and browser access lasts until disconnect
+or app restart. Keep the Mac awake and allow the app through the local firewall.
+This is a LAN HTTP controller, not a public Internet service. Cloudflare remote
+access remains a separate proposed extension.
 
 ## Media and device support
 
@@ -208,6 +285,11 @@ optional future Cloudflare Worker + local-agent design.
 swift test
 uv run python -m unittest discover -s tests -v
 bash -n scripts/build_app.sh scripts/package_release.sh run-player nest-speaker
+# Optional: real public-site resolution and range reads, without playing audio.
+uv run python scripts/smoke_online.py
+# Optional: packaged service/remote IPC and website extraction, without Cast audio.
+uv run python scripts/smoke_bundle.py \
+  'dist/Nest Player.app/Contents/Resources/nest-service/nest-service' --online
 ```
 
 The tests cover byte-range delivery, active-file access, direct MP3 playback,
@@ -231,7 +313,7 @@ See [CITATION.cff](CITATION.cff), [citation.bib](citation.bib), and the optional
   title = {{Nest Player}: macOS audio player for Google Nest and Chromecast speakers},
   year = {2026},
   url = {https://github.com/htlin222/google-nest-as-speaker},
-  version = {0.1.0}
+  version = {0.2.0}
 }
 ```
 
@@ -242,7 +324,9 @@ their own licenses, included in the app's Resources and dependency metadata.
 Built with [SwiftUI](https://developer.apple.com/xcode/swiftui/),
 [AVFoundation](https://developer.apple.com/av-foundation/),
 [PyChromecast](https://github.com/home-assistant-libs/pychromecast), and
-[FFmpeg](https://ffmpeg.org/) as an optional external media tool.
+[yt-dlp](https://github.com/yt-dlp/yt-dlp#embedding-yt-dlp), with
+[FFmpeg](https://ffmpeg.org/) as an optional external media tool. YouTube's
+runtime requirements follow [yt-dlp's EJS setup guide](https://github.com/yt-dlp/yt-dlp/wiki/EJS).
 
 Nest Player is an independent project and is not affiliated with or endorsed by
 Google. Google Nest, Google Home, Chromecast, and Google Cast are trademarks of

@@ -1,3 +1,4 @@
+import AppKit
 import AVFoundation
 import Foundation
 import Observation
@@ -7,6 +8,7 @@ import Observation
 final class PlayerModel {
     private static let playlistDefaultsKey = "playlistPaths"
     private static let devicesDefaultsKey = "cachedCastDevices"
+    private static let playlistRecordsKey = "playlistRecordsV2"
 
     var playlist: [Track] = []
     var selectedTrackID: Track.ID? {
@@ -27,6 +29,12 @@ final class PlayerModel {
     var isDropTarget = false
     var isDiscovering = false
     var localPlayer: AVPlayer?
+    var onlineHasVideo = false
+    var authenticationRequest: WebsiteLoginRequest?
+    var isScanningFolder = false
+    var remoteURL: URL?
+    var pairingCode = ""
+    var smbAddress = UserDefaults.standard.string(forKey: "smbAddress") ?? "smb://"
     private(set) var hasSession = false
     private(set) var activeTrack: Track?
 
@@ -34,6 +42,10 @@ final class PlayerModel {
     @ObservationIgnored private var transitionTask: Task<Void, Never>?
     @ObservationIgnored private var volumeTask: Task<Void, Never>?
     @ObservationIgnored private var generation = 0
+    @ObservationIgnored private var localAudioPlayer: AVPlayer?
+    @ObservationIgnored private var onlineAudioURL: URL?
+    @ObservationIgnored private var browserSessions: [String: String] = [:]
+    @ObservationIgnored private var folderTask: Task<FolderScan, any Error>?
 
     init() {
         let createdBackend: CastBackend?
@@ -60,11 +72,14 @@ final class PlayerModel {
             if !devices.isEmpty { statusDetail = "Ready to cast to \(selectedDeviceName)" }
         }
 
-        let savedPaths = UserDefaults.standard.stringArray(forKey: Self.playlistDefaultsKey) ?? []
-        playlist = savedPaths
-            .map { URL(fileURLWithPath: $0) }
-            .filter { FileManager.default.fileExists(atPath: $0.path) }
-            .map { Track(url: $0) }
+        if let data = UserDefaults.standard.data(forKey: Self.playlistRecordsKey),
+           let tracks = try? JSONDecoder().decode([Track].self, from: data) {
+            // Keep offline network files and website links so reconnecting can restore playback.
+            playlist = tracks
+        } else {
+            let savedPaths = UserDefaults.standard.stringArray(forKey: Self.playlistDefaultsKey) ?? []
+            playlist = savedPaths.map { Track(url: URL(fileURLWithPath: $0)) }
+        }
         selectedTrackID = playlist.first?.id
         configureLocalPlayer(for: selectedTrack)
 
@@ -79,6 +94,7 @@ final class PlayerModel {
     }
 
     var displayedTrack: Track? { activeTrack ?? selectedTrack }
+    var showsVideo: Bool { displayedTrack?.url.isFileURL == true ? displayedTrack?.isVideo == true : onlineHasVideo }
 
     var selectedDevice: CastDevice? {
         devices.first { $0.name == selectedDeviceName }
@@ -144,17 +160,97 @@ final class PlayerModel {
     }
 
     func addTracks(_ urls: [URL]) {
-        let existingPaths = Set(playlist.map { $0.url.standardizedFileURL.path })
-        let additions = urls
-            .filter(\.isFileURL)
-            .filter { !existingPaths.contains($0.standardizedFileURL.path) }
-            .map { Track(url: $0.standardizedFileURL) }
+        var seen = Set(playlist.map(\.source))
+        let additions = urls.compactMap { value -> Track? in
+            guard let url = value.isFileURL ? value.standardizedFileURL : MediaLinks.normalize(value) else { return nil }
+            let track = Track(url: url)
+            guard seen.insert(track.source).inserted else { return nil }
+            return track
+        }
         playlist.append(contentsOf: additions)
         if selectedTrackID == nil { selectedTrackID = playlist.first?.id }
         if !additions.isEmpty {
             statusDetail = "Added \(additions.count) track\(additions.count == 1 ? "" : "s")"
             savePlaylist()
         }
+    }
+
+    @discardableResult
+    func addLinks(from text: String, playFirst: Bool = true) -> Bool {
+        let urls = MediaLinks.parse(text)
+        guard let first = urls.first else {
+            statusDetail = "Paste a YouTube or Bilibili video link (share text is accepted)."
+            return false
+        }
+        addTracks(urls)
+        if let track = playlist.first(where: { $0.url == first }) {
+            selectedTrackID = track.id
+            if playFirst { requestPlayback(of: track) }
+        }
+        return true
+    }
+
+    func addFolder(_ folder: URL) {
+        folderTask?.cancel()
+        let accessed = folder.startAccessingSecurityScopedResource()
+        isScanningFolder = true
+        statusDetail = "Scanning \(folder.lastPathComponent)…"
+        let scan = Task.detached(priority: .utility) { try MediaFolderScanner.scan(folder) }
+        folderTask = scan
+        Task {
+            defer {
+                if accessed { folder.stopAccessingSecurityScopedResource() }
+                if !scan.isCancelled { isScanningFolder = false }
+            }
+            do {
+                let result = try await scan.value
+                guard !scan.isCancelled else { return }
+                let before = playlist.count
+                addTracks(result.urls)
+                statusDetail = "Added \(playlist.count - before) files from \(folder.lastPathComponent)" + (result.truncated ? " (10,000-file scan limit)" : "")
+            } catch {
+                guard !scan.isCancelled else { return }
+                statusDetail = "Could not read folder. If it is on SMB, connect the share in Finder and retry."
+            }
+        }
+    }
+
+    func cancelFolderScan() {
+        folderTask?.cancel()
+        isScanningFolder = false
+        statusDetail = "Folder scan cancelled"
+    }
+
+    func connectSMB() {
+        guard let url = SMBAddress.parse(smbAddress) else {
+            statusDetail = "Use smb://server/share. Enter your password only in the Finder login dialog."
+            return
+        }
+        UserDefaults.standard.set(url.absoluteString, forKey: "smbAddress")
+        NSWorkspace.shared.open(url)
+        statusDetail = "Connect in Finder, then choose Add Folder and select the mounted share."
+    }
+
+    func showWebsiteLogin(for track: Track? = nil) {
+        guard let track = track ?? selectedTrack, MediaLinks.site(for: track.url) != nil else { return }
+        authenticationRequest = WebsiteLoginRequest(track: track, message: "Sign in on the website, then let Nest Player use the selected browser session.")
+    }
+
+    func openLogin(in browser: BrowserSession, for request: WebsiteLoginRequest) {
+        guard let application = NSWorkspace.shared.urlForApplication(withBundleIdentifier: browser.bundleID) else { return }
+        NSWorkspace.shared.open([request.track.url], withApplicationAt: application, configuration: NSWorkspace.OpenConfiguration())
+    }
+
+    func retryLogin(_ request: WebsiteLoginRequest, browser: BrowserSession, remember: Bool) {
+        if remember { browserSessions[request.site] = browser.id }
+        authenticationRequest = nil
+        requestPlayback(of: request.track, browserOverride: browser.id)
+    }
+
+    func forgetWebsiteSessions() {
+        browserSessions.removeAll()
+        if let backend { Task { _ = try? await backend.request("forgetWebsiteSessions") } }
+        statusDetail = "Browser-session access cleared for future playback."
     }
 
     func importSecurityScoped(_ urls: [URL]) {
@@ -232,6 +328,7 @@ final class PlayerModel {
     func resume() { sendControl("resume", targetPhase: .playing, detail: "Casting to \(selectedDeviceName)") }
 
     func stop() {
+        authenticationRequest = nil
         generation += 1
         let stoppedGeneration = generation
         transitionTask?.cancel()
@@ -241,6 +338,7 @@ final class PlayerModel {
         statusDetail = "Playback stopped"
         currentTime = 0
         localPlayer?.pause()
+        localAudioPlayer?.pause()
         localPlayer?.seek(to: .zero)
         configureLocalPlayer(for: selectedTrack)
         guard let backend else { return }
@@ -258,6 +356,7 @@ final class PlayerModel {
         let bounded = min(max(seconds, 0), duration)
         currentTime = bounded
         localPlayer?.seek(to: CMTime(seconds: bounded, preferredTimescale: 600), toleranceBefore: .zero, toleranceAfter: .zero)
+        localAudioPlayer?.seek(to: CMTime(seconds: bounded, preferredTimescale: 600))
         sendControl("seek", fields: ["seconds": .number(bounded)])
     }
 
@@ -280,7 +379,16 @@ final class PlayerModel {
 
     func setLocalAudioEnabled(_ enabled: Bool) {
         localAudioEnabled = enabled
-        localPlayer?.isMuted = !enabled
+        localPlayer?.isMuted = onlineAudioURL != nil || !enabled
+        if enabled, localAudioPlayer == nil, let onlineAudioURL {
+            let player = AVPlayer(url: onlineAudioURL)
+            player.allowsExternalPlayback = false
+            player.seek(to: CMTime(seconds: currentTime, preferredTimescale: 600))
+            localAudioPlayer = player
+        }
+        localAudioPlayer?.isMuted = !enabled
+        if enabled && phase == .playing { localAudioPlayer?.play() }
+        else { localAudioPlayer?.pause() }
     }
 
     func refreshStatus() {}
@@ -289,12 +397,15 @@ final class PlayerModel {
         generation += 1
         transitionTask?.cancel()
         volumeTask?.cancel()
+        folderTask?.cancel()
         localPlayer?.pause()
+        localAudioPlayer?.pause()
         backend?.shutdown()
     }
 
-    private func requestPlayback(of track: Track) {
+    private func requestPlayback(of track: Track, browserOverride: String? = nil) {
         guard let backend, let castDevice = selectedDevice else { return }
+        authenticationRequest = nil
         generation += 1
         let requestGeneration = generation
         let device = castDevice.name
@@ -310,14 +421,18 @@ final class PlayerModel {
 
         transitionTask = Task {
             do {
-                _ = try await backend.request("play", fields: [
+                var fields: [String: JSONValue] = [
                     "generation": .integer(requestGeneration),
                     "device": .string(device),
                     "host": .string(host),
-                    "source": .string(track.url.path),
+                    "source": .string(track.source),
                     "title": .string(track.title),
                     "startTimeout": .number(20),
-                ])
+                ]
+                if let browser = browserOverride ?? browserSessions[MediaLinks.site(for: track.url) ?? ""] {
+                    fields["browser"] = .string(browser)
+                }
+                _ = try await backend.request("play", fields: fields)
             } catch {
                 guard generation == requestGeneration, !Task.isCancelled else { return }
                 hasSession = false
@@ -345,6 +460,8 @@ final class PlayerModel {
                 if let detail { statusDetail = detail }
                 if command == "pause" { localPlayer?.pause() }
                 if command == "resume" { localPlayer?.play() }
+                if command == "pause" { localAudioPlayer?.pause() }
+                if command == "resume", localAudioEnabled { localAudioPlayer?.play() }
             } catch {
                 guard generation == requestGeneration else { return }
                 fail(error)
@@ -353,12 +470,39 @@ final class PlayerModel {
     }
 
     private func consume(_ event: BackendMessage) {
+        if event.event == "remoteCommand" {
+            handleRemoteCommand(event.action ?? "", value: event.value ?? "")
+            return
+        }
         if event.event == "serviceReady" {
             if devices.isEmpty && !hasSession { statusDetail = "Cast service ready" }
             return
         }
         guard event.generation == generation else { return }
         switch event.event {
+        case "resolving":
+            phase = .connecting
+            statusDetail = "Loading \(event.site ?? "video")…"
+        case "onlineReady":
+            if let title = event.title, var track = activeTrack {
+                track.resolvedTitle = title
+                activeTrack = track
+                if let index = playlist.firstIndex(where: { $0.id == track.id }) { playlist[index] = track }
+                savePlaylist()
+            }
+            configureOnlinePlayers(audio: event.localAudioURL, video: event.localVideoURL)
+            updateTimes(event)
+        case "authenticationRequired":
+            let track = activeTrack
+            hasSession = false
+            activeTrack = nil
+            localPlayer?.pause()
+            localAudioPlayer?.pause()
+            phase = .idle
+            statusDetail = "Sign in to \(event.site ?? "the website") on the Mac to continue."
+            if let track {
+                authenticationRequest = WebsiteLoginRequest(track: track, message: event.message ?? statusDetail)
+            }
         case "transcoding":
             phase = .transcoding
             statusDetail = "Preparing \(event.source ?? "audio")"
@@ -377,9 +521,10 @@ final class PlayerModel {
             case "PLAYING":
                 synchronizeLocalPlayer(to: event.currentTime ?? currentTime, force: true)
                 localPlayer?.play()
+                if localAudioEnabled { localAudioPlayer?.play() }
                 phase = .playing
                 statusDetail = "Casting to \(selectedDeviceName)"
-            case "PAUSED": localPlayer?.pause(); phase = .paused
+            case "PAUSED": localPlayer?.pause(); localAudioPlayer?.pause(); phase = .paused
             case "BUFFERING": phase = .connecting
             default: break
             }
@@ -391,6 +536,7 @@ final class PlayerModel {
             hasSession = false
             activeTrack = nil
             localPlayer?.pause()
+            localAudioPlayer?.pause()
             phase = .idle
             currentTime = 0
             statusDetail = "Finished \(finished?.title ?? "track")"
@@ -399,6 +545,7 @@ final class PlayerModel {
             hasSession = false
             activeTrack = nil
             localPlayer?.pause()
+            localAudioPlayer?.pause()
             phase = .failed(event.message ?? "Cast playback failed")
             statusDetail = event.message ?? "Cast playback failed"
         default: break
@@ -420,12 +567,18 @@ final class PlayerModel {
     }
 
     private func savePlaylist() {
-        UserDefaults.standard.set(playlist.map(\.url.path), forKey: Self.playlistDefaultsKey)
+        if let data = try? JSONEncoder().encode(playlist) {
+            UserDefaults.standard.set(data, forKey: Self.playlistRecordsKey)
+        }
     }
 
     private func configureLocalPlayer(for track: Track?) {
         localPlayer?.pause()
-        guard let track else { localPlayer = nil; return }
+        localAudioPlayer?.pause()
+        localAudioPlayer = nil
+        onlineAudioURL = nil
+        onlineHasVideo = false
+        guard let track, track.url.isFileURL else { localPlayer = nil; return }
         let player = AVPlayer(url: track.url)
         player.isMuted = !localAudioEnabled
         player.allowsExternalPlayback = false
@@ -435,16 +588,104 @@ final class PlayerModel {
     private func synchronizeLocalPlayer(to remoteTime: Double, force: Bool = false) {
         guard let localPlayer, remoteTime.isFinite, remoteTime >= 0 else { return }
         let localTime = localPlayer.currentTime().seconds
-        guard force || !localTime.isFinite || abs(localTime - remoteTime) > 0.75 else { return }
-        localPlayer.seek(
-            to: CMTime(seconds: remoteTime, preferredTimescale: 600),
-            toleranceBefore: CMTime(seconds: 0.1, preferredTimescale: 600),
-            toleranceAfter: CMTime(seconds: 0.1, preferredTimescale: 600)
+        if force || !localTime.isFinite || abs(localTime - remoteTime) > 0.75 {
+            localPlayer.seek(
+                to: CMTime(seconds: remoteTime, preferredTimescale: 600),
+                toleranceBefore: CMTime(seconds: 0.1, preferredTimescale: 600),
+                toleranceAfter: CMTime(seconds: 0.1, preferredTimescale: 600)
+            )
+        }
+        if let localAudioPlayer {
+            let audioTime = localAudioPlayer.currentTime().seconds
+            if force || !audioTime.isFinite || abs(audioTime - remoteTime) > 0.75 {
+                localAudioPlayer.seek(to: CMTime(seconds: remoteTime, preferredTimescale: 600))
+            }
+        }
+    }
+
+    private func configureOnlinePlayers(audio: String?, video: String?) {
+        localPlayer?.pause()
+        localAudioPlayer?.pause()
+        localAudioPlayer = nil
+        onlineHasVideo = video != nil
+        onlineAudioURL = video == nil ? nil : audio.flatMap(URL.init(string:))
+        if let source = video ?? audio, let url = URL(string: source) {
+            localPlayer = AVPlayer(url: url)
+            localPlayer?.allowsExternalPlayback = false
+            localPlayer?.isMuted = video != nil || !localAudioEnabled
+        }
+        if localAudioEnabled, let onlineAudioURL {
+            localAudioPlayer = AVPlayer(url: onlineAudioURL)
+            localAudioPlayer?.allowsExternalPlayback = false
+        }
+    }
+
+    func loadRemoteInfo() {
+        guard let backend else { return }
+        Task {
+            do {
+                let result = try await backend.request("remoteInfo")
+                remoteURL = result.remoteURL.flatMap(URL.init(string:))
+                pairingCode = result.pairingCode ?? ""
+                publishRemoteState()
+            } catch { statusDetail = "Phone remote: \(error.localizedDescription)" }
+        }
+    }
+
+    var remoteSnapshot: String {
+        let tracks = playlist.map { RemoteTrack(id: $0.id.uuidString, title: $0.title, selected: $0.id == selectedTrackID) }
+        let state = RemoteState(
+            title: displayedTrack?.title ?? "Ready to play", detail: statusDetail,
+            speaker: selectedDeviceName, playing: phase == .playing,
+            position: currentTime.isFinite ? currentTime : 0,
+            duration: duration.isFinite ? duration : 0, volume: volume,
+            macAudio: localAudioEnabled, tracks: tracks
         )
+        return (try? JSONEncoder().encode(state)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
+    }
+
+    func publishRemoteState() {
+        guard let backend else { return }
+        let state = remoteSnapshot
+        Task { _ = try? await backend.request("remoteState", fields: ["state": .string(state)]) }
+    }
+
+    private func handleRemoteCommand(_ action: String, value: String) {
+        switch action {
+        case "toggle": togglePlayPause()
+        case "stop": stop()
+        case "previous": previousTrack()
+        case "next": nextTrack()
+        case "seek": if let seconds = Double(value), seconds.isFinite { seek(to: seconds) }
+        case "volume": if let level = Double(value), level.isFinite { setVolume(level) }
+        case "macAudio": setLocalAudioEnabled(value == "1")
+        case "addLink": addLinks(from: value)
+        case "playTrack":
+            if let id = UUID(uuidString: value), let track = playlist.first(where: { $0.id == id }) { play(track: track) }
+        default: break
+        }
     }
 
     private func fail(_ error: Error) {
         phase = .failed(error.localizedDescription)
         statusDetail = error.localizedDescription
     }
+}
+
+private struct RemoteTrack: Encodable {
+    let id: String
+    let title: String
+    let selected: Bool
+}
+
+private struct RemoteState: Encodable {
+    let title: String
+    let detail: String
+    let speaker: String
+    let playing: Bool
+    let position: Double
+    let duration: Double
+    let volume: Double
+    let macAudio: Bool
+    let tracks: [RemoteTrack]
 }

@@ -35,9 +35,10 @@ struct PlaybackEvent: Codable, Sendable {
     let duration: Double?
 }
 
-struct Track: Identifiable, Hashable, Sendable {
+struct Track: Identifiable, Hashable, Sendable, Codable {
     let id: UUID
     let url: URL
+    var resolvedTitle: String?
 
     init(id: UUID = UUID(), url: URL) {
         self.id = id
@@ -45,18 +46,23 @@ struct Track: Identifiable, Hashable, Sendable {
     }
 
     var title: String {
-        url.deletingPathExtension().lastPathComponent
+        resolvedTitle ?? (url.isFileURL ? url.deletingPathExtension().lastPathComponent : "\(MediaLinks.site(for: url) ?? "Online video") · \(url.lastPathComponent)")
     }
 
     var subtitle: String {
+        if !url.isFileURL { return MediaLinks.site(for: url) ?? "Online media" }
+        if url.path.hasPrefix("/Volumes/") { return "Network / External · \(url.pathExtension.uppercased())" }
         let ext = url.pathExtension.uppercased()
         return ext.isEmpty ? "Audio" : ext
     }
 
     var isVideo: Bool {
+        if !url.isFileURL { return true }
         guard let type = UTType(filenameExtension: url.pathExtension) else { return false }
         return type.conforms(to: .movie) || type.conforms(to: .video)
     }
+
+    var source: String { url.isFileURL ? url.path : url.absoluteString }
 }
 
 enum PlayerPhase: Equatable, Sendable {
