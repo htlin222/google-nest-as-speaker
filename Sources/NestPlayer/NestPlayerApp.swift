@@ -9,8 +9,14 @@ struct NestPlayerApp: App {
 
     init() {
         #if DEBUG && APP_STORE
-        if ProcessInfo.processInfo.arguments.contains("--service-smoke") {
-            BackendSmoke.start()
+        let arguments = ProcessInfo.processInfo.arguments
+        let verifyLAN = arguments.contains("--service-network-smoke")
+        let playSilence = arguments.contains("--cast-silence-smoke")
+        if arguments.contains("--service-smoke") || verifyLAN || playSilence {
+            let expected = arguments.firstIndex(of: "--expected-speaker").flatMap { index in
+                arguments.indices.contains(index + 1) ? arguments[index + 1] : nil
+            }
+            BackendSmoke.start(verifyLAN: verifyLAN, expectedSpeaker: expected, playSilence: playSilence)
             _model = State(initialValue: PlayerModel(preview: true))
             return
         }

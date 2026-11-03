@@ -1,11 +1,14 @@
 # App Store context — 2026-11-03
 
 Goal was explicitly created in the current conversation: submit Nest Player and
-reach Waiting for Review. It remains active and is not achieved.
+reach Waiting for Review. It is not achieved; account access and owner decisions
+are still required before submission can continue.
 
 Ego-lite TaskSpace 5, p1 is https://appstoreconnect.apple.com/. A sign-in form was
 observed and the task was handed to the account holder. Do not resume browser
 control until the user confirms login. No password/MFA was requested in chat.
+Latest metadata-only check still reports `agentDelegatedToUser`; do not use a
+new browser space or take over the existing one without the confirmation.
 
 Local tools: Xcode 26.6 (17F113), Swift 6.3.3, xcodegen installed. Keychain check
 found one Apple Development identity, no distribution identity. Paid-program
@@ -16,8 +19,9 @@ Engineering progress: XcodeGen 2.46 target, signed nested NestCastService.app
 entitlements. Sign before copying resources; post-build signing broke incremental
 resource seals and was removed. Entry: scripts/build_store.sh. Initial target:
 arm64, macOS 14+, version 0.2.0 build 3. A development Release archive exists at
-.build/NestPlayer-20261103-123547.xcarchive (ignored, not exported/uploaded;
-includes cache fixes, privacy manifests and dependency/runtime notices).
+.build/NestPlayer-20261103-133650.xcarchive (ignored, not exported/uploaded;
+includes low-rate normalization, cancellation/cache fixes, privacy manifests
+and dependency/runtime notices).
 
 Latest packaging work excludes unused Mutagen/PyInstaller/setuptools/pkg_resources
 runtime modules, preserving the bootloader notice. Fresh packaged helper tested
@@ -39,7 +43,7 @@ runtime license texts/provenance are in AppStore/RuntimeLicenses. Runtime's mini
 macOS is 11.0; the app targets 14.0. Bundle checks reject baseline/profile mismatch.
 runtimeInfo IPC returns actual running Python/OpenSSL/Expat versions; both
 packaged and native sandbox smoke probes validate them against inventory/lock.
-Latest tests: 19 Swift, 27 Python on the new runtime, native sandbox smoke and
+Latest tests: 21 Swift, 29 Python on the new runtime, native sandbox smoke and
 fresh community-helper YouTube+Bilibili/phone IPC all pass. The standalone site
 probe uses the community helper; sandbox-inheriting helper must be launched by
 its signed native parent. scripts/smoke_bundle.py now explains early child exits.
@@ -60,15 +64,40 @@ and NativeMediaServer (one opaque path, bounded clients/headers/chunks and
 GET/HEAD/Range). Python receives only HTTP and selects the Cast-facing NIC.
 Community website extraction/FFmpeg remain available; no edition decision applied.
 
-Verified: 19 Swift + 27 Python tests, including the added eviction regression check,
+Verified: 21 Swift + 29 Python tests, including cache/normalization/cancellation regression checks,
 community Release compilation, archive deep/strict signature, exact child
 sandbox+inherit entitlements, actual sandbox --service-smoke (~2 seconds), and
 fresh community helper IPC/phone smoke. Low-budget eviction testing caught
 current-file deletion due to URL structural equality and stale URL resource
 metadata preventing invalidation. Fixes use normalized paths and fresh filesystem
-attributes; the regression test now passes. Probe checks IPC, phone HTTP, synthetic silent CAF
-export/cache and native byte ranges; no discovery, Cast audio or volume changes.
-Real selected-file/restart/SMB/physical-Cast acceptance is still pending.
+attributes; the regression test now passes. The basic --service-smoke checks
+IPC, phone HTTP, synthetic silent CAF export/cache and native byte ranges without
+discovery or Cast playback. New explicit DEBUG probes --service-network-smoke
+and --cast-silence-smoke require --expected-speaker for target-specific acceptance.
+The latter requires fresh idle status, plays five seconds of zero samples and
+requires PLAYING then FINISHED, comparing volume before/after without a volume
+command. The final signed Debug build passed physical synthetic playback after
+all fixes. No actual device addresses or media are committed.
+
+Physical testing exposed a real bug: AppleM4A export preserved 22.05 kHz mono,
+which reached PLAYING then failed with detailedErrorCode 102 (MEDIA_DECODE).
+Faststart MP4, different HTTP completion and MIME experiments did not fix it;
+48 kHz mono and stereo both completed. NativeMediaPreparer now explicitly
+resamples incompatible inputs through bounded PCM buffers to 48 kHz AAC,
+retaining mono or downmixing to stereo. Compatible 44.1/48 kHz AAC can still pass
+through. M4A suffix alone no longer skips format inspection. Cache version v3
+avoids old exports; zero-byte entries are replaced rather than returned again.
+Writer finalization transfers exclusive access to a private serial finish/cancel
+queue after all sample appends have returned. Cancellation never races with
+reader copy/writer append; its admission regression test passes. Read-only
+playback audit found the missing finalize cancellation and zero-byte cache case;
+both are fixed and covered. Diagnostics are explicitly enabled and omit media
+URLs/paths/metadata and device addresses. Original HTTP close behavior retained.
+
+Real selected-file/restart/SMB/user-media-Cast acceptance, actual phone pairing
+and final submitted-edition screenshots are still pending. Account login, edition
+scope, distribution identity/provisioning and commercial/legal declarations
+remain unavailable. Do not claim only Apple approval remains.
 See docs/app-store/building.md for commands and limits.
 
 Existing v0.2.0 bundle is ad-hoc signed, unsandboxed, SwiftPM-built, and uses

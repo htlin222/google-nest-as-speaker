@@ -16,6 +16,9 @@
   - [x] Package dependency inventory, full notices, pinned zeroconf/certifi sources and runtime license provenance.
   - [x] Add per-bundle API-reason manifests and signed-artifact dependency/path checks.
   - [x] Pin and test CPython 3.12.16/OpenSSL 3.5.9/Expat 2.9.0 with isolated packaging bootstrap.
+  - [x] Verify actual sandboxed LAN discovery and synthetic Cast PLAYING → FINISHED; preserve receiver volume.
+  - [x] Fix low-rate AAC decode failure with bounded 48 kHz normalization; cover existing M4A and CAF inputs.
+  - [x] Connect writer-finalization cancellation and rebuild zero-byte cache entries; regression tests pass.
   - [ ] Complete final source/relink/distribution review.
   - [ ] Complete selected-file/restart/SMB/Cast acceptance, format and licensing audit.
   - [ ] Resolve Store website scope and distribution signing/export.

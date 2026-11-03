@@ -95,3 +95,69 @@ func nativeVideoExportContainsOnlyAudioAndReusesCache() async throws {
     }
     await #expect(throws: CancellationError.self) { try await cancelled.value }
 }
+
+@Test func nativeLowRateInputBecomesCastCompatibleAACAndReusesCache() async throws {
+    let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+    try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+    defer { try? FileManager.default.removeItem(at: root) }
+    let source = root.appending(path: "low-rate.caf")
+    let format = try #require(AVAudioFormat(standardFormatWithSampleRate: 22050, channels: 1))
+    let buffer = try #require(AVAudioPCMBuffer(pcmFormat: format, frameCapacity: 22050))
+    buffer.frameLength = buffer.frameCapacity
+    buffer.floatChannelData![0].update(repeating: 0, count: Int(buffer.frameLength))
+    do {
+        let file = try AVAudioFile(forWriting: source, settings: format.settings)
+        try file.write(from: buffer)
+    }
+    let preparer = NativeMediaPreparer(root: root.appending(path: "cache"))
+    let first = try await preparer.prepare(source)
+    let asset = AVURLAsset(url: first.file)
+    let audio = try #require(try await asset.loadTracks(withMediaType: .audio).first)
+    let description = try #require(try await audio.load(.formatDescriptions).first)
+    let stream = try #require(CMAudioFormatDescriptionGetStreamBasicDescription(description)?.pointee)
+    #expect(stream.mFormatID == kAudioFormatMPEG4AAC)
+    #expect(stream.mSampleRate == 48000)
+    #expect(stream.mChannelsPerFrame == 1)
+    #expect(abs(try await asset.load(.duration).seconds - 1) < 0.1)
+    #expect(try await preparer.prepare(source).cached)
+    try Data().write(to: first.file)
+    let repaired = try await preparer.prepare(source)
+    #expect(!repaired.cached)
+    #expect(repaired.file == first.file)
+    #expect(try Data(contentsOf: repaired.file).count > 0)
+    // A compatible M4A can now be used directly without another lossy encode.
+    #expect(try await preparer.prepare(first.file).file == first.file)
+    // M4A's suffix alone must not bypass normalization of existing low-rate AAC.
+    let lowRateM4A = root.appending(path: "low-rate.m4a")
+    let legacy = try #require(AVAssetExportSession(asset: AVURLAsset(url: source), presetName: AVAssetExportPresetAppleM4A))
+    try await legacy.export(to: lowRateM4A, as: .m4a)
+    let normalized = try await preparer.prepare(lowRateM4A)
+    #expect(normalized.file != lowRateM4A)
+    let normalizedAsset = AVURLAsset(url: normalized.file)
+    let normalizedTrack = try #require(try await normalizedAsset.loadTracks(withMediaType: .audio).first)
+    let normalizedFormat = try #require(try await normalizedTrack.load(.formatDescriptions).first)
+    #expect(CMAudioFormatDescriptionGetStreamBasicDescription(normalizedFormat)?.pointee.mSampleRate == 48000)
+}
+
+@Test func nativeWriterFinalizationHonorsCancellationBeforeAdmission() async throws {
+    let file = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString + ".m4a")
+    defer { try? FileManager.default.removeItem(at: file) }
+    let cancelled = Task {
+        let writer = try AVAssetWriter(outputURL: file, fileType: .m4a)
+        let input = AVAssetWriterInput(mediaType: .audio, outputSettings: [
+            AVFormatIDKey: kAudioFormatMPEG4AAC, AVSampleRateKey: 48000,
+            AVNumberOfChannelsKey: 1, AVEncoderBitRateKey: 64000,
+        ])
+        writer.add(input)
+        try #require(writer.startWriting())
+        writer.startSession(atSourceTime: .zero)
+        input.markAsFinished()
+        withUnsafeCurrentTask { $0?.cancel() }
+        do { try await NativeMediaPreparer.finishWriting(writer) }
+        catch {
+            #expect(writer.status == .cancelled)
+            throw error
+        }
+    }
+    await #expect(throws: CancellationError.self) { try await cancelled.value }
+}

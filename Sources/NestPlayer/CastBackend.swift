@@ -53,6 +53,9 @@ struct BackendMessage: Codable, Sendable {
     let pythonVersion: String?
     let opensslVersion: String?
     let expatVersion: String?
+    let receiverIdle: Bool?
+    let mediaSessionActive: Bool?
+    let probeIdle: Bool?
 }
 
 enum CastBackendError: LocalizedError {

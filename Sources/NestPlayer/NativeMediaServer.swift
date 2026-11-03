@@ -1,6 +1,14 @@
 import Foundation
 import Network
 
+private func traceNativeHTTP(_ message: String) {
+    #if DEBUG
+    if ProcessInfo.processInfo.arguments.contains("--cast-silence-smoke") {
+        try? FileHandle.standardError.write(contentsOf: Data(("NativeHTTP " + message + "\n").utf8))
+    }
+    #endif
+}
+
 struct MediaByteRange: Equatable, Sendable {
     let start: UInt64
     let length: UInt64
@@ -87,6 +95,7 @@ final class NativeMediaServer: @unchecked Sendable {
             }
         }
         listener.newConnectionHandler = { [weak self] connection in
+            traceNativeHTTP("accepted connection")
             guard let self, !self.closed, self.clients.count < 8 else { connection.cancel(); return }
             let id = UUID()
             let client = MediaHTTPClient(connection: connection, queue: self.queue, file: self.file,
@@ -184,6 +193,7 @@ private final class MediaHTTPClient: @unchecked Sendable {
         guard request.count == 3, ["HTTP/1.0", "HTTP/1.1"].contains(request[2]) else { reply("400 Bad Request"); return }
         guard request[0] == "GET" || request[0] == "HEAD" else { reply("405 Method Not Allowed"); return }
         guard request[1] == path else { reply("404 Not Found"); return }
+        traceNativeHTTP("method=\(request[0]) authorized=true")
         let ranges = lines.dropFirst().filter { $0.lowercased().hasPrefix("range:") }
         guard ranges.count <= 1 else { reply("400 Bad Request"); return }
         do {
@@ -205,11 +215,13 @@ private final class MediaHTTPClient: @unchecked Sendable {
                 extra += "Content-Range: bytes \(range.start)-\(range.start + range.length - 1)/\(size)\r\n"
             }
             let status = ranges.isEmpty ? "200 OK" : "206 Partial Content"
+            traceNativeHTTP("status=\(status) start=\(range.start) length=\(range.length) size=\(size)")
             send(Data("HTTP/1.1 \(status)\r\n\(extra)Content-Length: \(range.length)\r\nConnection: close\r\n\r\n".utf8))
         } catch { reply("404 Not Found") }
     }
 
     private func reply(_ status: String, extra: String = "") {
+        traceNativeHTTP("status=\(status)")
         remaining = 0
         send(Data("HTTP/1.1 \(status)\r\n\(extra)Content-Length: 0\r\nConnection: close\r\n\r\n".utf8))
     }
@@ -218,7 +230,8 @@ private final class MediaHTTPClient: @unchecked Sendable {
         guard !closed else { return }
         connection.send(content: data, completion: .contentProcessed { [weak self] error in
             guard let self, !self.closed else { return }
-            if error != nil { self.close(); return }
+            if let error { traceNativeHTTP("send failed: \(error)"); self.close(); return }
+            traceNativeHTTP("send processed bytes=\(data.count) remaining=\(self.remaining)")
             self.lastActivity = Date()
             guard self.remaining > 0, let handle = self.handle else { self.close(); return }
             do {
@@ -229,4 +242,5 @@ private final class MediaHTTPClient: @unchecked Sendable {
             } catch { self.close() }
         })
     }
+
 }

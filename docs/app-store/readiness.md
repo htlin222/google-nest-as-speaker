@@ -11,7 +11,7 @@ not a Mac App Store archive and should not be uploaded as though it were one.
 | Signing | Apple Development identity only | Configure the appropriate distribution signing and provisioning |
 | Packaging | Xcode project and signed development Release archive verified | Configure and validate distribution export/upload |
 | Sandbox | Native bookmarks/file serving; parent sandbox and inheriting helper verified | Complete selected-file/restart/SMB/Cast acceptance |
-| Media tools | Local-media path uses AVFoundation/cache; Python 3.12.16, OpenSSL 3.5.9 and Expat 2.9.0 baseline verified | Finish format acceptance; website JS runtime unresolved |
+| Media tools | Native audio/cache and physical synthetic Cast playback verified; low-rate AAC normalized to 48 kHz; pinned Python/OpenSSL/Expat runtime | Finish user-media/format acceptance; website JS runtime unresolved |
 | Dependency notices | Frozen inventory, upstream notices, two checked source archives and matching runtime license profile packaged | Complete distribution-terms/source/relink review |
 | Privacy | Per-bundle API-use manifests and data-flow inventory prepared | Confirm final edition, public policy and App Store questionnaire |
 | Website media | yt-dlp extraction and explicit browser-cookie opt-in | Confirm authorization and Store edition scope; do not conceal functionality |
@@ -36,10 +36,14 @@ requirements are resolved. The existing GitHub features are unchanged.
 The [sandboxed engineering target](building.md) keeps selected-file reads and
 audio preparation in the native process. The persistent Cast helper receives
 an opaque HTTP capability. The actual sandboxed app passes a silent service,
-HTTP, export, cache and range probe. A development Release archive passes
+HTTP, export, cache and range probe. Separate opt-in probes verified live speaker
+discovery and five seconds of silent playback through PLAYING → FINISHED without
+changing volume. An actual low-rate AAC decode failure was fixed by explicit
+48 kHz normalization, with regression coverage for CAF and existing M4A input.
+A development Release archive passes
 signature verification, without `get-task-allow` in its application entitlements.
 This is not a distribution export or complete end-to-end acceptance test.
-Dependency licensing, website scope, physical playback and selected-file access
+Dependency licensing, website scope, user-media playback and selected-file access
 still need completion.
 
 The [dependency record](dependencies.md) now identifies shipped runtime code and

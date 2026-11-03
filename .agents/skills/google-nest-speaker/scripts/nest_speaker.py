@@ -26,6 +26,7 @@ from typing import BinaryIO, Iterator
 from urllib.parse import quote, urlsplit
 
 import pychromecast
+from pychromecast.controllers import BaseController
 from pychromecast.controllers.media import STREAM_TYPE_BUFFERED
 from online_media import OnlineError, OnlineRelay, extract_streams, resolve_in_child, website_name
 from remote_control import RemoteController
@@ -58,6 +59,32 @@ def runtime_info() -> dict[str, str]:
 
 class CliError(RuntimeError):
     """An expected, user-actionable command failure."""
+
+
+class MediaProtocolTrace(BaseController):
+    """Opt-in diagnostics: enum/error fields only, never media URLs or titles."""
+
+    def __init__(self, emit_event: callable) -> None:
+        super().__init__("urn:x-cast:com.google.cast.media")
+        self.emit_event = emit_event
+
+    def receive_message(self, _message: object, data: dict) -> bool:
+        fields: list[str] = []
+
+        def collect(value: object) -> None:
+            if isinstance(value, dict):
+                for key, item in value.items():
+                    if key in {"type", "playerState", "idleReason", "detailedErrorCode", "errorCode", "contentType"} and isinstance(item, (str, int)):
+                        fields.append(f"{key}={item}")
+                    elif isinstance(item, (dict, list)):
+                        collect(item)
+            elif isinstance(value, list):
+                for item in value:
+                    collect(item)
+
+        collect(data)
+        self.emit_event(" ".join(fields))
+        return True
 
 
 class RangeRequestHandler(http.server.SimpleHTTPRequestHandler):
@@ -923,6 +950,10 @@ class NestPlayerService:
                     return
                 event("casting", source=source_value, device=device, url=media_url)
                 controller = cast.media_controller
+                if request.get("traceMediaProtocol") is True:
+                    observer = MediaProtocolTrace(lambda message: event("diagnostic", message=message))
+                    cast.socket_client.register_handler(observer)
+                    stack.callback(cast.socket_client.unregister_handler, observer)
                 controller.play_media(media_url, content_type, title=title, stream_type=STREAM_TYPE_BUFFERED)
                 self.monitor_owned_playback(controller, media_url, generation, stop_event, float(request.get("startTimeout", 30)))
         except OnlineError as error:
@@ -1063,6 +1094,21 @@ class NestPlayerService:
             self.respond(request_id, volume=round(actual * 100))
             return
         elif command == "status":
+            probe_idle = cast.is_idle
+            if request.get("fresh") is True and not probe_idle:
+                received = threading.Event()
+                replies: list[dict] = []
+
+                def status_response(success: bool, data: dict | None) -> None:
+                    if success and isinstance(data, dict):
+                        replies.append(data)
+                    received.set()
+
+                controller.update_status(callback_function=status_response)
+                if not received.wait(3) or not replies:
+                    raise CliError("Could not confirm the receiver's current media state")
+                # An empty standard receiver has no active media to interrupt.
+                probe_idle = cast.app_id == "CC1AD845" and replies[0].get("status") == []
             status = controller.status
             self.respond(
                 request_id,
@@ -1070,6 +1116,9 @@ class NestPlayerService:
                 currentTime=status.adjusted_current_time,
                 duration=status.duration,
                 volume=round(cast.status.volume_level * 100),
+                receiverIdle=cast.is_idle,
+                mediaSessionActive=bool(status.media_session_id),
+                probeIdle=probe_idle,
             )
             return
         self.respond(request_id)

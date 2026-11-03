@@ -197,6 +197,39 @@ class PlaybackOwnershipTests(unittest.TestCase):
         service.start_playback({"generation": 9, "source": "/unused", "device": "unused"})
         self.assertIsNone(service.playback_thread)
 
+    def test_fresh_probe_does_not_treat_occupied_or_other_receivers_as_idle(self) -> None:
+        for app_id, statuses, expected in [
+            ("CC1AD845", [], True),
+            ("CC1AD845", [{"playerState": "PLAYING"}], False),
+            ("another-app", [], False),
+        ]:
+            with self.subTest(app_id=app_id, statuses=statuses):
+                service, _ = self.service()
+                cast = mock.Mock()
+                cast.is_idle = False
+                cast.app_id = app_id
+                cast.status.volume_level = 0.5
+                cast.media_controller.status = _FakeStatus("IDLE", "", None)
+                cast.media_controller.update_status.side_effect = lambda callback_function: callback_function(True, {"status": statuses})
+                service.cast = cast
+                service.respond = mock.Mock()
+                service.handle_control("probe", "status", {"fresh": True})
+                self.assertEqual(service.respond.call_args.kwargs["probeIdle"], expected)
+                cast.receiver_controller.set_volume.assert_not_called()
+                cast.media_controller.play_media.assert_not_called()
+
+    def test_protocol_trace_excludes_media_urls_and_metadata(self) -> None:
+        messages: list[str] = []
+        observer = nest_speaker.MediaProtocolTrace(messages.append)
+        observer.receive_message(None, {
+            "type": "MEDIA_STATUS", "status": [{
+                "playerState": "IDLE", "idleReason": "ERROR", "detailedErrorCode": 102,
+                "media": {"contentId": "https://private.invalid/token", "metadata": {"title": "private title"}},
+            }],
+        })
+        self.assertIn("detailedErrorCode=102", messages[0])
+        self.assertNotIn("private", messages[0])
+
 
 class CacheTests(unittest.TestCase):
     def test_ffmpeg_process_can_be_cancelled_promptly(self) -> None:
