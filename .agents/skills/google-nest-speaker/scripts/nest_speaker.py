@@ -178,6 +178,21 @@ def local_ip_for_peer(host: str, port: int) -> str:
         return str(sock.getsockname()[0])
 
 
+def native_media_url(value: str, cast_host: str, cast_port: int) -> str:
+    """Advertise the native process's opaque endpoint on the Cast-facing NIC."""
+    parsed = urlsplit(value)
+    if (
+        parsed.scheme != "http" or parsed.hostname != "127.0.0.1"
+        or parsed.username is not None or parsed.password is not None
+        or parsed.port is None or parsed.port < 1
+        or parsed.query or parsed.fragment
+        or not re.fullmatch(r"/[0-9a-fA-F-]{36}/audio", parsed.path)
+    ):
+        raise CliError("Invalid native media capability")
+    host = local_ip_for_peer(cast_host, cast_port)
+    return parsed._replace(netloc=f"{host}:{parsed.port}").geturl()
+
+
 def run_ffmpeg(command: list[str], cancel_event: threading.Event | None = None) -> bool:
     process = subprocess.Popen(command)
     while process.poll() is None:
@@ -876,6 +891,9 @@ class NestPlayerService:
                     )
                 elif is_media_url(source_value):
                     media_url = source_value
+                    if request.get("nativeMedia") is True:
+                        info = cast.cast_info
+                        media_url = native_media_url(source_value, str(info.host), int(info.port))
                     content_type = str(request.get("contentType") or guess_content_type(source_value))
                 else:
                     temporary = Path(stack.enter_context(tempfile.TemporaryDirectory(prefix="nest-player-")))

@@ -10,3 +10,7 @@ dist/
 !.env.example
 *.pem
 *.key
+*.xcodeproj/
+*.xcworkspace/
+*.xcarchive/
+*.xcresult/

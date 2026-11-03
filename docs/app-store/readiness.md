@@ -9,9 +9,9 @@ not a Mac App Store archive and should not be uploaded as though it were one.
 | --- | --- | --- |
 | App Store Connect | Sign-in form; account holder handoff pending | Authenticate and verify team permissions/membership |
 | Signing | Apple Development identity only | Configure the appropriate distribution signing and provisioning |
-| Packaging | SwiftPM executable + frozen helper, ad-hoc bundle | Create and validate an Xcode archive/export path |
-| Sandbox | No runtime sandbox entitlements | Implement file/folder bookmarks, permission lifetime, helper access, and LAN entitlements |
-| Media tools | FFmpeg and JS runtime are external dependencies | Use self-contained, licensed components or platform APIs |
+| Packaging | Xcode project and signed development Release archive verified | Configure and validate distribution export/upload |
+| Sandbox | Native bookmarks/file serving; parent sandbox and inheriting helper verified | Complete selected-file/restart/SMB/Cast acceptance |
+| Media tools | Engineering Store local-media path uses AVFoundation and a cache | Finish format/license audit; website JS runtime unresolved |
 | Website media | yt-dlp extraction and explicit browser-cookie opt-in | Confirm authorization and Store edition scope; do not conceal functionality |
 | Store assets | GitHub demo artwork available | Capture the actual submitted edition and complete accurate localizations |
 | Commercial setup | Price, territories and agreements unconfirmed | Account holder chooses and completes required declarations |
@@ -31,12 +31,14 @@ requirements are resolved. The existing GitHub features are unchanged.
 
 ## Engineering direction for review
 
-Use native macOS APIs for persistent user-selected file permissions and, where
-possible, audio export. A sandboxed helper cannot be assumed to inherit a file
-permission granted after the helper started; native file serving or an explicit
-capability/file-descriptor handoff must be tested. All shipped executable tools
-and libraries need a consistent signing and licensing strategy. Avoid a runtime
-package installer, unsigned nested code, and reliance on Homebrew for Store use.
+The [sandboxed engineering target](building.md) keeps selected-file reads and
+audio preparation in the native process. The persistent Cast helper receives
+an opaque HTTP capability. The actual sandboxed app passes a silent service,
+HTTP, export, cache and range probe. A development Release archive passes
+signature verification, without `get-task-allow` in its application entitlements.
+This is not a distribution export or complete end-to-end acceptance test.
+Dependency licensing, website scope, physical playback and selected-file access
+still need completion.
 
 No account contract, paid enrollment, final price, export declaration, privacy
 declaration, or submission has been accepted or invented by the agent.

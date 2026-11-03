@@ -84,14 +84,21 @@ final class CastBackend: @unchecked Sendable {
 
     init() throws {
         let process = Process()
-        if let bundled = Bundle.main.url(
+        let storeHelper = Bundle.main.bundleURL.appending(path: "Contents/Helpers/NestCastService.app/Contents/MacOS/nest-service")
+        let communityHelper = Bundle.main.url(
             forResource: "nest-service",
             withExtension: nil,
             subdirectory: "nest-service"
-        ), FileManager.default.isExecutableFile(atPath: bundled.path) {
+        )
+        if let bundled = [storeHelper, communityHelper].compactMap({ $0 })
+            .first(where: { FileManager.default.isExecutableFile(atPath: $0.path) }) {
             process.executableURL = bundled
             process.arguments = ["--json", "service"]
         } else {
+            #if APP_STORE
+            // A Store app must remain self-contained; never invoke Homebrew/uv.
+            throw CastBackendError.missingHelper
+            #else
             guard let uv = Self.findExecutable(
                 environmentKey: "UV",
                 candidates: ["/opt/homebrew/bin/uv", "/usr/local/bin/uv"]
@@ -109,13 +116,19 @@ final class CastBackend: @unchecked Sendable {
                 "python", helper.path, "--json", "service",
             ]
             process.currentDirectoryURL = root
+            #endif
         }
 
         var environment = ProcessInfo.processInfo.environment
+        #if APP_STORE
+        let standardPath = "/usr/bin:/bin:/usr/sbin:/sbin"
+        environment["PATH"] = standardPath
+        #else
         let standardPath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin"
         environment["PATH"] = [environment["PATH"], standardPath]
             .compactMap { $0 }
             .joined(separator: ":")
+        #endif
         process.environment = environment
 
         let inputPipe = Pipe()

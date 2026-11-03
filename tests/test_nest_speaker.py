@@ -79,6 +79,17 @@ class MediaServerTests(unittest.TestCase):
 
 
 class UtilityTests(unittest.TestCase):
+    def test_native_media_capability_uses_cast_facing_network_address(self) -> None:
+        path = "/00000000-0000-4000-8000-000000000001/audio"
+        with mock.patch.object(nest_speaker, "local_ip_for_peer", return_value="192.0.2.10"):
+            self.assertEqual(
+                nest_speaker.native_media_url("http://127.0.0.1:45678" + path, "192.0.2.20", 8009),
+                "http://192.0.2.10:45678" + path,
+            )
+        for invalid in ["https://127.0.0.1:1234" + path, "http://example.com:1234" + path, "http://127.0.0.1:1234/private", "http://127.0.0.1:1234" + path + "?token=other"]:
+            with self.assertRaises(nest_speaker.CliError):
+                nest_speaker.native_media_url(invalid, "192.0.2.20", 8009)
+
     def test_url_detection_and_mime_guessing(self) -> None:
         self.assertTrue(nest_speaker.is_media_url("https://example.com/a.mp3"))
         self.assertFalse(nest_speaker.is_media_url("/tmp/a.mp3"))

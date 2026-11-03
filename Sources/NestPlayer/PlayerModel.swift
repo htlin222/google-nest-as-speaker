@@ -46,6 +46,11 @@ final class PlayerModel {
     @ObservationIgnored private var onlineAudioURL: URL?
     @ObservationIgnored private var browserSessions: [String: String] = [:]
     @ObservationIgnored private var folderTask: Task<FolderScan, any Error>?
+    @ObservationIgnored private var fileAccess: FileAccessStore?
+    #if APP_STORE
+    @ObservationIgnored private let nativePreparer = NativeMediaPreparer()
+    @ObservationIgnored private var nativeMediaServer: NativeMediaServer?
+    #endif
 
     #if DEBUG
     @ObservationIgnored private var isDocumentationPreview = false
@@ -93,6 +98,7 @@ final class PlayerModel {
             startupError = error
         }
         backend = createdBackend
+        fileAccess = FileAccessStore()
         if let startupError {
             phase = .failed(startupError.localizedDescription)
             statusDetail = startupError.localizedDescription
@@ -232,14 +238,20 @@ final class PlayerModel {
 
     func addFolder(_ folder: URL) {
         folderTask?.cancel()
-        let accessed = folder.startAccessingSecurityScopedResource()
+        let readableFolder: URL
+        do {
+            try fileAccess?.authorize(folder, isDirectory: true)
+            readableFolder = try fileAccess?.readableURL(for: folder) ?? folder
+        } catch {
+            statusDetail = error.localizedDescription
+            return
+        }
         isScanningFolder = true
         statusDetail = "Scanning \(folder.lastPathComponent)…"
-        let scan = Task.detached(priority: .utility) { try MediaFolderScanner.scan(folder) }
+        let scan = Task.detached(priority: .utility) { try MediaFolderScanner.scan(readableFolder) }
         folderTask = scan
         Task {
             defer {
-                if accessed { folder.stopAccessingSecurityScopedResource() }
                 if !scan.isCancelled { isScanningFolder = false }
             }
             do {
@@ -295,9 +307,10 @@ final class PlayerModel {
 
     func importSecurityScoped(_ urls: [URL]) {
         for url in urls {
-            let accessed = url.startAccessingSecurityScopedResource()
-            addTracks([url])
-            if accessed { url.stopAccessingSecurityScopedResource() }
+            do {
+                try fileAccess?.authorize(url)
+                addTracks([url])
+            } catch { statusDetail = error.localizedDescription }
         }
     }
 
@@ -372,6 +385,10 @@ final class PlayerModel {
         generation += 1
         let stoppedGeneration = generation
         transitionTask?.cancel()
+        #if APP_STORE
+        nativeMediaServer?.close()
+        nativeMediaServer = nil
+        #endif
         hasSession = false
         activeTrack = nil
         phase = .idle
@@ -441,6 +458,11 @@ final class PlayerModel {
         localPlayer?.pause()
         localAudioPlayer?.pause()
         backend?.shutdown()
+        #if APP_STORE
+        nativeMediaServer?.close()
+        nativeMediaServer = nil
+        #endif
+        fileAccess?.close()
     }
 
     private func requestPlayback(of track: Track, browserOverride: String? = nil) {
@@ -451,6 +473,10 @@ final class PlayerModel {
         let device = castDevice.name
         let host = castDevice.host
         transitionTask?.cancel()
+        #if APP_STORE
+        nativeMediaServer?.close()
+        nativeMediaServer = nil
+        #endif
         hasSession = true
         activeTrack = track
         currentTime = 0
@@ -461,20 +487,54 @@ final class PlayerModel {
 
         transitionTask = Task {
             do {
+                var source = track.url.isFileURL
+                    ? try (fileAccess?.readableURL(for: track.url) ?? track.url).path
+                    : track.source
+                #if APP_STORE
+                var nativeType: String?
+                if track.url.isFileURL {
+                    _ = try await backend.request("stop", fields: ["generation": .integer(requestGeneration)])
+                    try Task.checkCancellation()
+                    phase = .transcoding
+                    statusDetail = "Preparing audio from \(track.title)"
+                    let prepared = try await nativePreparer.prepare(URL(fileURLWithPath: source))
+                    try Task.checkCancellation()
+                    let served = try await NativeMediaServer.serve(file: prepared.file, contentType: prepared.contentType)
+                    guard generation == requestGeneration, !Task.isCancelled else {
+                        served.server.close()
+                        return
+                    }
+                    nativeMediaServer = served.server
+                    source = served.url.absoluteString
+                    nativeType = prepared.contentType
+                    phase = .connecting
+                    statusDetail = prepared.cached ? "Using cached audio" : "Media ready"
+                }
+                #endif
                 var fields: [String: JSONValue] = [
                     "generation": .integer(requestGeneration),
                     "device": .string(device),
                     "host": .string(host),
-                    "source": .string(track.source),
+                    "source": .string(source),
                     "title": .string(track.title),
                     "startTimeout": .number(20),
                 ]
+                #if APP_STORE
+                if let nativeType {
+                    fields["nativeMedia"] = .boolean(true)
+                    fields["contentType"] = .string(nativeType)
+                }
+                #endif
                 if let browser = browserOverride ?? browserSessions[MediaLinks.site(for: track.url) ?? ""] {
                     fields["browser"] = .string(browser)
                 }
                 _ = try await backend.request("play", fields: fields)
             } catch {
                 guard generation == requestGeneration, !Task.isCancelled else { return }
+                #if APP_STORE
+                nativeMediaServer?.close()
+                nativeMediaServer = nil
+                #endif
                 hasSession = false
                 activeTrack = nil
                 fail(error)
@@ -572,6 +632,10 @@ final class PlayerModel {
             updateTimes(event)
             synchronizeLocalPlayer(to: event.currentTime ?? currentTime)
         case "completed":
+            #if APP_STORE
+            nativeMediaServer?.close()
+            nativeMediaServer = nil
+            #endif
             let finished = activeTrack
             hasSession = false
             activeTrack = nil
@@ -582,6 +646,10 @@ final class PlayerModel {
             statusDetail = "Finished \(finished?.title ?? "track")"
             if let finished { playNext(after: finished) }
         case "failed":
+            #if APP_STORE
+            nativeMediaServer?.close()
+            nativeMediaServer = nil
+            #endif
             hasSession = false
             activeTrack = nil
             localPlayer?.pause()
@@ -619,7 +687,11 @@ final class PlayerModel {
         onlineAudioURL = nil
         onlineHasVideo = false
         guard let track, track.url.isFileURL else { localPlayer = nil; return }
-        let player = AVPlayer(url: track.url)
+        guard let url = try? fileAccess?.readableURL(for: track.url) ?? track.url else {
+            localPlayer = nil
+            return
+        }
+        let player = AVPlayer(url: url)
         player.isMuted = !localAudioEnabled
         player.allowsExternalPlayback = false
         localPlayer = player

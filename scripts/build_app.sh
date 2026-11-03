@@ -11,22 +11,7 @@ contents_dir="$staged_app/Contents"
 iconset_dir="$helper_build/NestPlayer.iconset"
 
 swift build --package-path "$repo_dir" -c release
-uv run --locked --project "$repo_dir" --group dev pyinstaller \
-  --noconfirm \
-  --clean \
-  --onedir \
-  --contents-directory . \
-  --recursive-copy-metadata pychromecast \
-  --recursive-copy-metadata yt-dlp \
-  --collect-all yt_dlp \
-  --collect-all yt_dlp_ejs \
-  --copy-metadata setuptools \
-  --copy-metadata pyinstaller \
-  --name nest-service \
-  --distpath "$helper_build/dist" \
-  --workpath "$helper_build/work" \
-  --specpath "$helper_build" \
-  "$repo_dir/.agents/skills/google-nest-speaker/scripts/nest_speaker.py"
+bash "$repo_dir/scripts/build_helper.sh" "$helper_build/dist/nest-service"
 mkdir -p "$contents_dir/MacOS" "$contents_dir/Resources"
 cp -f "$bin_dir/NestPlayer" "$contents_dir/MacOS/NestPlayer"
 cp -f "$repo_dir/scripts/Info.plist" "$contents_dir/Info.plist"

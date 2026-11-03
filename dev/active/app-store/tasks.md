@@ -8,5 +8,11 @@
 - [ ] Verify Apple account, program membership, team role, agreements, app record.
 - [ ] Confirm edition scope, price, territory, contact and legal declarations.
 - [ ] Implement and test sandbox-compatible, self-contained distribution.
+  - [x] Generate Xcode project, nested helper app, sandbox entitlements and signing scripts.
+  - [x] Implement lazy file bookmarks and native byte-range serving.
+  - [x] Add native audio export/cache; avoid child-process file-grant assumptions.
+  - [x] Verify development Release archive and actual sandboxed silent probe.
+  - [ ] Complete selected-file/restart/SMB/Cast acceptance, format and licensing audit.
+  - [ ] Resolve Store website scope and distribution signing/export.
 - [ ] Archive/sign/upload; complete accurate App Store metadata and screenshots.
 - [ ] Submit and verify actual Waiting for Review state.

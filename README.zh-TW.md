@@ -32,6 +32,8 @@ Nest Player 是使用 SwiftUI 製作的原生 macOS 播放器，支援播放清�
 
 在 Mac 選擇媒體、將音訊送往 Cast 喇叭，再用手機控制同一個播放工作階段。展示圖不包含真實帳號、NAS 位址、私人媒體或有效配對憑證。目前尚未宣布 Mac App Store 上架。
 
+[Mac App Store 準備進度](docs/app-store/readiness.md)記錄另行建置的沙盒開發版與尚待完成的送審項目。
+
 ## 下載與安裝
 
 預先編譯的 `.app` 適用於 **Apple Silicon（M1 或更新）與 macOS 14 Sonoma 以上版本**。目前 Release 未提供 Intel 執行檔。

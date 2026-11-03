@@ -28,6 +28,7 @@ mkdir -p .build assets/screenshots
 swiftc -D DEBUG -parse-as-library -o .build/render-native-preview \
   Sources/NestPlayer/CastBackend.swift Sources/NestPlayer/CastModels.swift \
   Sources/NestPlayer/ContentView.swift Sources/NestPlayer/MediaSources.swift \
+  Sources/NestPlayer/FileAccessStore.swift \
   Sources/NestPlayer/PlayerLayerView.swift Sources/NestPlayer/PlayerModel.swift \
   Sources/NestPlayer/SourceSheets.swift scripts/render_native_preview.swift
 .build/render-native-preview assets/screenshots/native-player.png

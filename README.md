@@ -44,6 +44,8 @@ The examples demonstrate one shared playback queue: choose media on your Mac,
 send its audio to a Cast speaker, then control the session from your phone.
 No real account, NAS address, private media, or active pairing credential appears
 in these screenshots. App Store availability has not been announced.
+The [Mac App Store preparation notes](docs/app-store/readiness.md) track the
+separate sandboxed engineering build and remaining submission requirements.
 
 ## Download and install
 

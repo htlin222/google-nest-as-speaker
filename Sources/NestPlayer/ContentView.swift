@@ -119,6 +119,7 @@ struct ContentView: View {
         .dropDestination(for: URL.self) { urls, _ in
             for url in urls {
                 if url.isFileURL, (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) == true { model.addFolder(url) }
+                else if url.isFileURL { model.importSecurityScoped([url]) }
                 else { model.addTracks([url]) }
             }
             return !urls.isEmpty
