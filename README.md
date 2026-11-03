@@ -1,3 +1,5 @@
+<p align="center"><strong>English</strong> · <a href="README.zh-TW.md">繁體中文（台灣）</a></p>
+
 <p align="center">
   <img src="assets/nest-player.png" width="144" height="144" alt="Nest Player logo: a white play symbol and turquoise wireless audio waves on an indigo tile">
 </p>
@@ -25,6 +27,23 @@ from both devices. A Python CLI is included for scripts and automation.
 **[Download for Apple Silicon](https://github.com/htlin222/google-nest-as-speaker/releases/latest)**
 · [CLI quick start](#command-line-quick-start)
 · [Architecture & specification](SPEC.md)
+
+![Nest Player feature overview: native Mac player, local and SMB library, website links, and an iPhone browser remote](assets/screenshots/feature-overview.png)
+
+*GitHub edition product preview with fictional media and device data. The phone
+controller is captured from the real interface using Playwright; the native view
+uses an isolated demo fixture. [Capture sources and reproduction](docs/screenshots/README.md).*
+
+## See it in action
+
+| Native macOS playback panel | iPhone browser remote |
+| --- | --- |
+| ![Native Nest Player interface with a fictional playlist and Mac audio muted](assets/screenshots/native-player.png) | <img src="assets/screenshots/iphone-remote.png" width="270" alt="Playwright screenshot of the real iPhone remote: playback, volume, playlist and website link controls"> |
+
+The examples demonstrate one shared playback queue: choose media on your Mac,
+send its audio to a Cast speaker, then control the session from your phone.
+No real account, NAS address, private media, or active pairing credential appears
+in these screenshots. App Store availability has not been announced.
 
 ## Download and install
 

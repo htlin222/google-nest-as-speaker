@@ -1,0 +1,21 @@
+{
+  "fixture": "Fictional documentation data; no real devices, files, cookies or credentials",
+  "native": "Production playback panel rendered in memory by AppKit in DEBUG with PlayerModel(preview: true); sidebar excluded",
+  "browser": "Playwright Chromium with installed Chrome; fresh temporary contexts",
+  "phoneViewport": {
+    "width": 390,
+    "height": 844,
+    "scale": 2
+  },
+  "heroViewport": {
+    "width": 1600,
+    "height": 1000,
+    "scale": 2
+  },
+  "artifacts": [
+    "native-player.png",
+    "iphone-remote.png",
+    "phone-pairing.png",
+    "feature-overview.png"
+  ]
+}

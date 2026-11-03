@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Nest Player — product preview</title>
+<style>
+*{box-sizing:border-box}body{margin:0;font-family:-apple-system,BlinkMacSystemFont,"Helvetica Neue",sans-serif;color:#17202f;background:#f4f5f8}
+.canvas{position:relative;width:1600px;height:1000px;overflow:hidden;background:radial-gradient(ellipse at 70% 77%,#d7e9e5 0,transparent 45%),radial-gradient(ellipse at 66% 26%,#e1dcfa 0,transparent 48%),#f4f5f8}
+.brand{position:absolute;top:58px;left:76px;display:flex;align-items:center;gap:14px;font-size:25px;font-weight:680;letter-spacing:-.7px}.brand img{width:53px;height:53px}.version{position:absolute;right:76px;top:74px;border:1px solid #c7cbd9;border-radius:100px;padding:10px 16px;font:12px ui-monospace,monospace;letter-spacing:.5px}
+.intro{position:absolute;left:80px;top:180px;width:850px}.eyebrow{color:#5e607d;font-size:12px;letter-spacing:3px;font-weight:650;margin:0 0 23px}h1{font-size:75px;line-height:1.02;letter-spacing:-4px;margin:0;font-weight:720}.accent{color:#5c49b7}.intro p{font-size:22px;line-height:1.55;letter-spacing:-.3px;margin:28px 0 0;color:#647083;max-width:430px}
+.features{position:absolute;left:82px;top:540px;width:330px;display:grid;gap:27px}.feature{display:flex;gap:16px;align-items:center}.feature .icon{width:43px;height:43px;border:1px solid #d0d5de;border-radius:14px;display:grid;place-items:center;background:#ffffff91;color:#5d50ac}.icon svg{width:21px;height:21px;stroke:currentColor;fill:none;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}.feature strong{font-size:16px;font-weight:650;display:block;margin-bottom:5px}.feature span{font-size:13px;color:#77808f}
+.desktop{position:absolute;left:540px;top:370px;width:560px;padding:8px;background:#252533;border:1px solid #5c5b6d;border-radius:21px;box-shadow:0 32px 80px #262c4c35,0 2px 4px #10102322}.desktop img{display:block;width:100%;height:auto;border-radius:13px}.desktop-label{position:absolute;left:548px;top:334px;color:#7a7f91;font-size:11px;letter-spacing:1.8px;font-weight:600}
+.phone{position:absolute;left:1190px;top:170px;width:300px;height:790px;padding:9px;background:#252533;border:1px solid #5c5b6d;border-radius:40px;box-shadow:0 28px 70px #262c4c42;z-index:3}.phone:before{content:"";position:absolute;top:16px;left:108px;width:82px;height:20px;border-radius:20px;background:#080816;z-index:4}.screen{height:100%;overflow:hidden;border-radius:31px;background:#101025;padding-top:30px}.phone img{display:block;width:100%;height:auto}.phone:after{content:"";position:absolute;bottom:17px;left:110px;width:78px;height:4px;border-radius:4px;background:#b1afc7}
+.caption{position:absolute;left:82px;bottom:47px;font:10px ui-monospace,monospace;letter-spacing:1.8px;color:#888e9b}.route{position:absolute;left:82px;bottom:109px;display:flex;gap:9px;align-items:center;font-size:11px;font-weight:650;color:#768194}.route b{padding:8px 12px;border-radius:8px;border:1px solid #d8dde3;background:#ffffff70;color:#51616f}.route .dot{color:#7eaaa3}
+</style>
+<main class="canvas">
+  <div class="brand"><img src="/assets/nest-player.png" alt="">Nest Player</div>
+  <div class="version">NATIVE macOS APP · v0.2</div>
+  <div class="intro"><div class="eyebrow">A LITTLE PLAYER. A BIGGER SOUND.</div><h1>Your media.<br><span class="accent">Every room.</span></h1><p>Watch on your Mac.<br>Listen on Cast.<br>Keep control in your pocket.</p></div>
+  <div class="features">
+    <div class="feature"><div class="icon"><svg viewBox="0 0 24 24"><path d="M3 7h6l2 2h10v11H3zM3 7V4h7l2 3"/></svg></div><div><strong>A library without borders</strong><span>Local files, folders & SMB shares</span></div></div>
+    <div class="feature"><div class="icon"><svg viewBox="0 0 24 24"><path d="m9 8 7 4-7 4zM5 4h14v16H5z"/></svg></div><div><strong>Paste. Play. Cast.</strong><span>YouTube & Bilibili video links</span></div></div>
+    <div class="feature"><div class="icon"><svg viewBox="0 0 24 24"><rect x="7" y="2" width="10" height="20" rx="3"/><path d="M11 18h2M10 6h4"/></svg></div><div><strong>Your iPhone is the remote</strong><span>Scan a QR code. You're connected.</span></div></div>
+  </div>
+  <div class="desktop-label">NATIVE MAC PLAYBACK PANEL</div>
+  <div class="desktop"><img src="/assets/screenshots/native-player.png" alt="Actual SwiftUI player with fictional playlist"></div>
+  <div class="phone"><div class="screen"><img src="/assets/screenshots/iphone-remote.png" alt="Actual browser remote with fictional playback"></div></div>
+  <div class="route"><b>YOUR MAC</b><span class="dot">→</span><b>YOUR CAST SPEAKER</b><span class="dot">←</span><b>YOUR PHONE</b></div>
+  <div class="caption">PRODUCT PREVIEW · REAL UI · FICTIONAL MEDIA & DEVICE DATA · GITHUB EDITION</div>
+</main>
+</html>

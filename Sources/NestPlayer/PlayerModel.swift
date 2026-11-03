@@ -47,6 +47,41 @@ final class PlayerModel {
     @ObservationIgnored private var browserSessions: [String: String] = [:]
     @ObservationIgnored private var folderTask: Task<FolderScan, any Error>?
 
+    #if DEBUG
+    @ObservationIgnored private var isDocumentationPreview = false
+    /// Documentation renderer only: never creates a backend or writes preferences.
+    init(preview: Bool) {
+        backend = nil
+        isDocumentationPreview = true
+        let samples: [(String, String)] = [
+            ("file:///Demo/Midnight%20Coast.flac", "Midnight Coast — Live Session"),
+            ("https://www.youtube.com/watch?v=documentation_demo", "Sunday Focus — Studio Session"),
+            ("https://www.bilibili.com/video/BVdemo/", "設計的日常 — 聲音與空間"),
+            ("file:///Volumes/StudioNAS/Field%20Notes.m4a", "Field Notes — NAS Collection"),
+            ("file:///Demo/Piano%20in%20the%20Rain.flac", "Piano in the Rain"),
+            ("file:///Demo/Night%20Train.mp4", "Night Train — Film Study"),
+        ]
+        playlist = samples.enumerated().map { index, sample in
+            var track = Track(id: UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", index + 1))!, url: URL(string: sample.0)!)
+            track.resolvedTitle = sample.1
+            return track
+        }
+        devices = [CastDevice(name: "Studio Nest", model: "Google Nest Mini", host: "192.0.2.10", port: 8009, type: "audio")]
+        selectedDeviceName = "Studio Nest"
+        hasSession = true
+        selectedTrackID = playlist.first?.id
+        activeTrack = playlist.first
+        phase = .playing
+        currentTime = 204
+        duration = 1240
+        volume = 38
+        statusDetail = "Casting to Studio Nest · Demo data"
+        smbAddress = "smb://studio-nas/music"
+        remoteURL = URL(string: "http://192.0.2.10:8989/?token=nonfunctional-documentation-demo")
+        pairingCode = "000000"
+    }
+    #endif
+
     init() {
         let createdBackend: CastBackend?
         let startupError: Error?
@@ -100,7 +135,12 @@ final class PlayerModel {
         devices.first { $0.name == selectedDeviceName }
     }
 
-    var canPlay: Bool { selectedTrack != nil && selectedDevice != nil && backend != nil }
+    var canPlay: Bool {
+        #if DEBUG
+        if isDocumentationPreview { return selectedTrack != nil && selectedDevice != nil }
+        #endif
+        return selectedTrack != nil && selectedDevice != nil && backend != nil
+    }
     var canTogglePlayback: Bool {
         canPlay && phase != .connecting && phase != .transcoding && phase != .discovering
     }
