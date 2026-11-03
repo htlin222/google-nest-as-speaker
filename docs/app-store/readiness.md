@@ -1,6 +1,11 @@
 # Mac App Store readiness
 
-Status: preparation in progress; not submitted. Updated 2026-11-03.
+Status: paused by the owner; not submitted. Updated 2026-11-03.
+
+The owner chose GitHub distribution for now. The GitHub edition retains YouTube,
+Bilibili, local/SMB folders and the phone remote. No App Store submission or
+edition split is being pursued. The engineering evidence and future requirements
+below are retained for reference; they do not block GitHub releases.
 
 The v0.2.0 GitHub application is an ad-hoc-signed community distribution. It is
 not a Mac App Store archive and should not be uploaded as though it were one.
@@ -24,9 +29,9 @@ screenshots (2.3), and appropriate authorization for third-party media access
 (5.2.2/5.2.3). Streaming through a local proxy does not itself establish that
 authorization. This is an engineering review plan, not a promise of approval.
 
-## Proposed first commercial edition
+## Deferred proposal for a commercial edition
 
-Pending user approval: local files and user-mounted SMB folders, playlists,
+Not selected or applied: local files and user-mounted SMB folders, playlists,
 local video with Cast audio, and the paired iPhone browser remote. Website
 extraction can remain in the GitHub edition while authorization and technical
 requirements are resolved. The existing GitHub features are unchanged.

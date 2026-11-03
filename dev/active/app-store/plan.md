@@ -1,5 +1,9 @@
 # Mac App Store submission
 
+Paused on 2026-11-03 at the owner's explicit request: use the GitHub edition
+instead. Keep website playback; no App Store submission or edition split now.
+The remainder records the deferred plan, not active work.
+
 Completion means App Store Connect has accepted the uploaded build and the app
 version has actually entered Waiting for Review. A GitHub release, local build,
 or draft store listing does not meet this goal.

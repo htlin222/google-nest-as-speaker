@@ -1,8 +1,11 @@
 # App Store context — 2026-11-03
 
 Goal was explicitly created in the current conversation: submit Nest Player and
-reach Waiting for Review. It is not achieved; account access and owner decisions
-are still required before submission can continue.
+reach Waiting for Review. The owner explicitly paused that objective on
+2026-11-03 and chose the GitHub edition instead. Goal status is paused, not
+complete. Keep YouTube/Bilibili functionality; do not continue Apple login,
+registration, edition splitting or submission unless the user resumes it.
+The remaining account and submission details below are deferred context.
 
 Ego-lite TaskSpace 5, p1 is https://appstoreconnect.apple.com/. A sign-in form was
 observed and the task was handed to the account holder. Do not resume browser

@@ -43,9 +43,10 @@ uses an isolated demo fixture. [Capture sources and reproduction](docs/screensho
 The examples demonstrate one shared playback queue: choose media on your Mac,
 send its audio to a Cast speaker, then control the session from your phone.
 No real account, NAS address, private media, or active pairing credential appears
-in these screenshots. App Store availability has not been announced.
-The [Mac App Store preparation notes](docs/app-store/readiness.md) track the
-separate sandboxed engineering build and remaining submission requirements.
+in these screenshots. **Nest Player is distributed through GitHub Releases.**
+Mac App Store submission is paused; YouTube and Bilibili remain in this edition.
+The [Mac App Store preparation notes](docs/app-store/readiness.md) preserve the
+separate sandboxed engineering work for possible future distribution.
 
 ## Download and install
 
@@ -53,7 +54,7 @@ The prebuilt `.app` requires **macOS 14 Sonoma or later on Apple Silicon
 (M1 or newer)**. An Intel binary is not included in this release.
 
 1. Open [Releases](https://github.com/htlin222/google-nest-as-speaker/releases/latest)
-   and download `Nest-Player-0.2.0-macOS-arm64.zip`.
+   and download `Nest-Player-0.2.1-macOS-arm64.zip`.
 2. Extract the ZIP and move **Nest Player.app** to Applications.
 3. Open the app and allow local-network access if macOS requests it.
 4. Select your Cast speaker, add or drop a media file, then press Play.
@@ -74,7 +75,7 @@ discovery or streaming.
 
 ### First launch on macOS
 
-This initial release is **ad-hoc signed and not notarized by Apple**. If macOS
+This GitHub release is **ad-hoc signed and not notarized by Apple**. If macOS
 blocks the app and you trust this download, attempt to open it, then use
 **System Settings → Privacy & Security → Open Anyway**. See
 [Apple's instructions for opening downloaded apps](https://support.apple.com/en-us/102445).
@@ -82,7 +83,7 @@ blocks the app and you trust this download, attempt to open it, then use
 Each release includes a SHA-256 file. To verify the download before extracting:
 
 ```bash
-shasum -a 256 -c Nest-Player-0.2.0-macOS-arm64.zip.sha256
+shasum -a 256 -c Nest-Player-0.2.1-macOS-arm64.zip.sha256
 ```
 
 ## Features
@@ -265,6 +266,9 @@ the macOS icon, includes dependency license metadata, and ad-hoc signs the
 result. No runtime package installer is used by the bundled app. FFmpeg and
 FFprobe are resolved separately from the installed system tools.
 
+Set `NEST_APP_OUTPUT` to an absolute `.app` path to stage a separate bundle.
+Use the same value for packaging; the ZIP version comes from that bundle's plist.
+
 ## Architecture and privacy
 
 ```text
@@ -338,7 +342,7 @@ See [CITATION.cff](CITATION.cff), [citation.bib](citation.bib), and the optional
   title = {{Nest Player}: macOS audio player for Google Nest and Chromecast speakers},
   year = {2026},
   url = {https://github.com/htlin222/google-nest-as-speaker},
-  version = {0.2.0}
+  version = {0.2.1}
 }
 ```
 
