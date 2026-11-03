@@ -16,7 +16,7 @@ development dependency as shipped code. Each frozen helper contains:
   inventory format, not a certified SPDX/CycloneDX SBOM.
 - `ThirdPartySources/`: the unmodified zeroconf and certifi source archives from
   `uv.lock`, with download sizes and SHA-256 checked before packaging.
-- `RuntimeNotices/`: 13 runtime license texts and a provenance/hash manifest.
+- `RuntimeNotices/`: 14 runtime license texts and a provenance/hash manifest.
 
 For the sandbox helper these files are under
 `Contents/Helpers/NestCastService.app/Contents/Resources/` inside the main app.
@@ -52,7 +52,7 @@ pkg_resources build packages are excluded from frozen runtime imports. The
 PyInstaller bootloader remains and retains its notice. The CLI's locked
 development environment still contains optional dependencies.
 
-Observed comparison before notices were added: 1,803 to 1,543 frozen modules and
+Historical comparison before notices and the runtime upgrade: 1,803 to 1,543 frozen modules and
 49,411,609 to 47,270,900 file bytes (about 2 MiB smaller). Public YouTube and
 Bilibili extraction still returned audio/video streams; phone IPC passed. These
 are packaging observations, not measured CPU/RAM or cold-start improvements.
@@ -65,26 +65,38 @@ native-runtime notice profile. It does not replace Apple's export/upload checks.
 
 ## Native runtime provenance
 
-The current engineering build uses CPython 3.12.11 from the upstream
-[20250818 python-build-standalone release](https://github.com/astral-sh/python-build-standalone/releases/tag/20250818).
+The current engineering build uses CPython 3.12.16, OpenSSL 3.5.9 and Expat 2.9.0
+from the upstream [20261026 python-build-standalone release](https://github.com/astral-sh/python-build-standalone/releases/tag/20261026).
 The full archive hash was checked against the release digest, and its libpython
 Mach-O UUID matched the installed stripped runtime. The upstream build metadata
 identified applicable license texts for built-in native modules, including
 OpenSSL, compression, XML, SQLite, libffi and related runtime components.
 [`manifest.json`](../../AppStore/RuntimeLicenses/manifest.json) records the source,
-binary identity and per-file hashes. The runtime/security patch baseline still
-needs updating or explicit qualification before commercial release.
+binary identity and per-file hashes. The baseline was checked on 2026-11-03
+against [Python's security release](https://www.python.org/downloads/release/python-31216/)
+and [OpenSSL's maintained-release listing](https://openssl-library.org/source/).
+This records a reviewed release baseline, not a guarantee against future issues.
+
+[`Runtime.lock.json`](../../AppStore/Runtime.lock.json) pins the installer/full
+archive URLs, published digests, byte sizes and expected runtime versions.
+`bootstrap_runtime.py` caches the interpreter under `.build/runtimes/`; packaging
+uses `.build/packaging-venv` with the existing `uv.lock`. The user's global Python
+and regular project `.venv` are not replaced. A frozen helper never downloads an
+interpreter at runtime. Its `runtimeInfo` IPC and both smoke probes verify the
+versions that actually execute, rather than trusting build-machine metadata.
 
 To refresh the profile for a different interpreter, obtain that exact upstream
 full archive, verify its published digest, then run with the build interpreter:
 
 ```bash
+source scripts/build_environment.sh
 uv run --locked python scripts/import_runtime_notices.py /path/to/full.tar.zst \
   --sha256 VERIFIED_RELEASE_DIGEST --source-url VERIFIED_UPSTREAM_ASSET_URL
 ```
 
 The tool refuses a mismatched interpreter version or Mach-O UUID. A Store build
-without a matching native-runtime notice profile fails its packaging check.
+without a matching native-runtime notice profile or baseline fails its packaging
+check. Update the pinned runtime, notices and validation evidence together.
 
 ## Rebuilding with a modified dependency
 

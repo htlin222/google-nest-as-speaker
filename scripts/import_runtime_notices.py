@@ -62,6 +62,7 @@ def main() -> None:
         target.write_bytes(raw)
         imported.append({"file": target.name, "sha256": hashlib.sha256(raw).hexdigest()})
     profile = {"pythonVersion": version, "pythonBuild": sys.version,
+               "minimumMacOS": data.get("apple_sdk_deployment_target"),
                "libraryUUID": uuid(installed), "installedLibrarySHA256": hashlib.sha256(installed.read_bytes()).hexdigest(),
                "sourceArchiveURL": args.source_url, "sourceArchiveSHA256": args.sha256,
                "matchMethod": "Same Mach-O UUID; install-only runtime is stripped",

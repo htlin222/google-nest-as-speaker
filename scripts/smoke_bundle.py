@@ -21,15 +21,29 @@ def main() -> None:
     started = time.monotonic()
     process = subprocess.Popen([str(helper), "--json", "service"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
     try:
-        ready = json.loads(process.stdout.readline())
+        def read_message() -> dict:
+            line = process.stdout.readline()
+            if not line:
+                _, diagnostic = process.communicate(timeout=3)
+                raise RuntimeError(
+                    f"Helper exited before a JSON response (code {process.returncode}). "
+                    "A sandbox-inheriting helper must be launched by its signed app; "
+                    "use the app's --service-smoke probe for that build. " + diagnostic[-2000:]
+                )
+            return json.loads(line)
+
+        ready = read_message()
         assert ready["event"] == "serviceReady"
+        baseline = json.loads((Path(__file__).resolve().parents[1] / "AppStore/Runtime.lock.json").read_text())
+        for key in ("pythonVersion", "opensslVersion", "expatVersion"):
+            assert ready[key] == baseline[key], f"Packaged {key} differs from the reviewed baseline"
         cold_start = round(time.monotonic() - started, 3)
 
         def request(command: str, **fields) -> dict:
             process.stdin.write(json.dumps({"id": command, "command": command, **fields}) + "\n")
             process.stdin.flush()
             while True:
-                message = json.loads(process.stdout.readline())
+                message = read_message()
                 if message.get("id") == command:
                     assert message.get("ok"), message
                     return message
@@ -44,12 +58,13 @@ def main() -> None:
         assert requests.get(base + "/api/state", headers=headers, timeout=3).json()["title"] == "Packaged IPC smoke test"
         response = requests.post(base + "/api/command", headers=headers, json={"action": "toggle", "value": ""}, timeout=3)
         assert response.status_code == 200
-        event = json.loads(process.stdout.readline())
+        event = read_message()
         assert event["event"] == "remoteCommand" and event["action"] == "toggle"
         request("shutdown")
         process.wait(timeout=5)
         assert process.returncode == 0
-        print(json.dumps({"packagedService": "passed", "phoneIPC": "passed", "coldStartSeconds": cold_start}))
+        print(json.dumps({"packagedService": "passed", "phoneIPC": "passed", "coldStartSeconds": cold_start,
+                          **{key: ready[key] for key in ("pythonVersion", "opensslVersion", "expatVersion")}}))
     finally:
         if process.poll() is None:
             process.terminate()

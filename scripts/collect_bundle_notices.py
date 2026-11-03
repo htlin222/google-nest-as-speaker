@@ -13,6 +13,8 @@ import json
 from pathlib import Path
 import re
 import shutil
+import ssl
+import pyexpat
 import sys
 import sysconfig
 import tomllib
@@ -135,15 +137,20 @@ def collect(helper: Path, repo: Path) -> dict:
     report = {
         "format": "NestPlayerFrozenDependencyInventory-v1",
         "pythonVersion": sys.version.split()[0], "pythonBuild": sys.version,
+        "opensslVersion": ssl.OPENSSL_VERSION, "expatVersion": pyexpat.EXPAT_VERSION,
         "frozenPythonModuleCount": len(modules), "excludedRuntimePackages": list(EXCLUDED_MODULES),
         "runtimeLicenseProfile": runtime,
         "components": components,
         "reviewRemaining": [
-            "Supported CPython/OpenSSL security patch level",
             "LGPL/MPL obligations, rebuild/relink instructions, and final distribution terms",
             "Final website-media scope and provider authorization",
         ],
     }
+    baseline = json.loads((repo / "AppStore/Runtime.lock.json").read_text())
+    report["runtimeBaselineMatches"] = all(report[key] == baseline[key] for key in ("pythonVersion", "opensslVersion", "expatVersion"))
+    report["baselineReviewedOn"] = baseline["baselineReviewedOn"]
+    if not report["runtimeBaselineMatches"]:
+        report["reviewRemaining"].insert(0, "Runtime differs from the reviewed Python/OpenSSL/Expat baseline")
     if not runtime["verified"]:
         report["reviewRemaining"].insert(0, "Runtime native dependency licenses need a matching upstream profile")
     if any(info.get("localModifiedSourceNeedsPackaging") for info in components):

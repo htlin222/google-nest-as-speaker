@@ -1,0 +1,23 @@
+{
+  "pythonVersion": "3.12.16",
+  "opensslVersion": "OpenSSL 3.5.9 29 Sep 2026",
+  "expatVersion": "expat_2.9.0",
+  "platform": "Darwin",
+  "architecture": "arm64",
+  "baselineReviewedOn": "2026-11-03",
+  "pythonReleaseURL": "https://www.python.org/downloads/release/python-31216/",
+  "opensslReleaseURL": "https://openssl-library.org/source/",
+  "providerRelease": "20261026",
+  "installArchive": {
+    "filename": "cpython-3.12.16+20261026-aarch64-apple-darwin-install_only_stripped.tar.gz",
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.12.16%2B20261026-aarch64-apple-darwin-install_only_stripped.tar.gz",
+    "sha256": "353d5f1b4fd2715e7053f12f068435d5bbad16b91e057006b5d01e0925709a7e",
+    "bytes": 25035343
+  },
+  "fullArchive": {
+    "filename": "cpython-3.12.16+20261026-aarch64-apple-darwin-pgo+lto-full.tar.zst",
+    "url": "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.12.16%2B20261026-aarch64-apple-darwin-pgo%2Blto-full.tar.zst",
+    "sha256": "016758f4881e5f71d63eddfbcdd53f25c5a9152435a863e4dc0770758eae32c3",
+    "bytes": 57660205
+  }
+}

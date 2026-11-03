@@ -1,10 +1,11 @@
 {
-  "pythonVersion": "3.12.11",
-  "pythonBuild": "3.12.11 (main, Aug 18 2025, 19:02:39) [Clang 20.1.4 ]",
-  "libraryUUID": "4C4C44F1-5555-3144-A17D-57903E17FC59",
-  "installedLibrarySHA256": "5c872ad004dd50349f65d2b133e8c5f8205168c86d50fd69bb6494fc0fabcaed",
-  "sourceArchiveURL": "https://github.com/astral-sh/python-build-standalone/releases/download/20250818/cpython-3.12.11%2B20250818-aarch64-apple-darwin-pgo%2Blto-full.tar.zst",
-  "sourceArchiveSHA256": "29fb93c5166340d0d68a77f3aef2bdb8fd65a988e84746ce69d8cd5ec6b57a27",
+  "pythonVersion": "3.12.16",
+  "pythonBuild": "3.12.16 (main, Oct 26 2026, 13:59:40) [Clang 23.1.3 ]",
+  "minimumMacOS": "11.0",
+  "libraryUUID": "4C4C44E3-5555-3144-A1C3-7785B7F677F6",
+  "installedLibrarySHA256": "f67c069bb9323a3ee98ef17add05b2905ac8c8167a73749ebe5c6b0b46104801",
+  "sourceArchiveURL": "https://github.com/astral-sh/python-build-standalone/releases/download/20261026/cpython-3.12.16%2B20261026-aarch64-apple-darwin-pgo%2Blto-full.tar.zst",
+  "sourceArchiveSHA256": "016758f4881e5f71d63eddfbcdd53f25c5a9152435a863e4dc0770758eae32c3",
   "matchMethod": "Same Mach-O UUID; install-only runtime is stripped",
   "licenseFiles": [
     {
@@ -29,7 +30,7 @@
     },
     {
       "file": "LICENSE.liblzma.txt",
-      "sha256": "828d5b508798d6a95c1c08ce5eee517a84ed1bda14eac58c440b6bce2c5cf1ca"
+      "sha256": "9a4062de0a2c388a98cf35a35d348b62fa97c838a71c3c28ee1a2d7d0a565b02"
     },
     {
       "file": "LICENSE.libuuid.txt",
@@ -44,16 +45,16 @@
       "sha256": "87a4c4442337b8968ef956031c406b74f9cb7149b7ba87311bdaba534816201c"
     },
     {
-      "file": "LICENSE.openssl-1.1.txt",
-      "sha256": "9c04cce50c4989d5601dd8b07f6ab922c40388b66ac736c9007cb1ed9d9dd560"
-    },
-    {
       "file": "LICENSE.openssl-3.txt",
       "sha256": "7d5450cb2d142651b8afa315b5f238efc805dad827d91ba367d8516bc9d49e7a"
     },
     {
       "file": "LICENSE.sqlite.txt",
       "sha256": "38bef3d28b24f145ea293bd3b6eb4b20396982abc8303128fb493986ea5bc719"
+    },
+    {
+      "file": "LICENSE.zlib-ng.txt",
+      "sha256": "6c9f0d975b41afaa34d22f55bb8986ce69e5cb7ad327cb2b28820cd425edf5ee"
     },
     {
       "file": "LICENSE.zlib.txt",

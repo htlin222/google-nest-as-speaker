@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+source "$repo_dir/scripts/build_environment.sh"
 destination=${1:?Usage: build_helper.sh /absolute/path/to/new/nest-service}
 mode=${2:-directory}
 if [ "$mode" != directory ] && [ "$mode" != app ]; then

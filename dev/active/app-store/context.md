@@ -16,7 +16,7 @@ Engineering progress: XcodeGen 2.46 target, signed nested NestCastService.app
 entitlements. Sign before copying resources; post-build signing broke incremental
 resource seals and was removed. Entry: scripts/build_store.sh. Initial target:
 arm64, macOS 14+, version 0.2.0 build 3. A development Release archive exists at
-.build/NestPlayer-20261103-121918.xcarchive (ignored, not exported/uploaded;
+.build/NestPlayer-20261103-123547.xcarchive (ignored, not exported/uploaded;
 includes cache fixes, privacy manifests and dependency/runtime notices).
 
 Latest packaging work excludes unused Mutagen/PyInstaller/setuptools/pkg_resources
@@ -27,19 +27,26 @@ claim. collect_bundle_notices.py inspects actual PYZ modules, includes 15 compon
 notices, and bundles hash-checked zeroconf/certifi sdists from uv.lock. A modified
 local library can rebuild; inventory flags modified source packaging as pending.
 
-Runtime is CPython 3.12.11 (Aug 18 2025), OpenSSL 3.0.16. Its native security
-patch baseline still needs qualification/update before commercial release.
-Downloaded upstream PBS 20250818 full archive into .build/runtime-licensing;
-SHA256 matches release digest 29fb93c5166340d0d68a77f3aef2bdb8fd65a988e84746ce69d8cd5ec6b57a27.
-Installed stripped libpython has the same Mach-O UUID as the full artifact.
-import_runtime_notices.py imports 13 matching native-runtime license texts with
-provenance in AppStore/RuntimeLicenses. A changed interpreter requires a new
-verified profile. collect_bundle_notices.py includes that profile; Store bundle
-checks reject an unreviewed runtime profile.
+Runtime now uses CPython 3.12.16/OpenSSL 3.5.9/Expat 2.9.0 from PBS 20261026.
+Checked Python security release and OpenSSL maintained branches on 2026-11-03.
+AppStore/Runtime.lock.json pins installer/full-archive URLs/digests/sizes and
+expected versions. Bootstrap uses .build/runtimes/353d5f1b4fd2715e/python and
+.build/packaging-venv; the user's .venv remains on its original 3.12.11.
+Upstream full archive is cached in .build/runtime-upgrade; its digest is
+016758f4881e5f71d63eddfbcdd53f25c5a9152435a863e4dc0770758eae32c3.
+Installed stripped libpython matches the full artifact's Mach-O UUID; 14 matching
+runtime license texts/provenance are in AppStore/RuntimeLicenses. Runtime's minimum
+macOS is 11.0; the app targets 14.0. Bundle checks reject baseline/profile mismatch.
+runtimeInfo IPC returns actual running Python/OpenSSL/Expat versions; both
+packaged and native sandbox smoke probes validate them against inventory/lock.
+Latest tests: 19 Swift, 27 Python on the new runtime, native sandbox smoke and
+fresh community-helper YouTube+Bilibili/phone IPC all pass. The standalone site
+probe uses the community helper; sandbox-inheriting helper must be launched by
+its signed native parent. scripts/smoke_bundle.py now explains early child exits.
 
 verify_store_bundle.py checks signatures, same signing team, exact helper
 inheritance entitlements, reviewed API reason manifests, source/license hashes,
-actual runtime UUID, no escaping symlinks and no external/private load commands
+actual runtime UUID/versions/minimum macOS, no escaping symlinks and no external/private load commands
 or rpaths. Current Release has 66 Mach-O files, 1543 modules and two verified
 source archives. API manifests describe native UserDefaults/file metadata and
 helper cache metadata/elapsed timers; final data-use questionnaire is pending.

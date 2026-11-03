@@ -8,6 +8,9 @@ use `scripts/build_app.sh`.
 
 Requirements: Xcode 26.6 with command-line tools selected, XcodeGen 2.46.0, uv,
 and a local Apple signing identity. Initial target: Apple silicon, macOS 14+.
+Packaging automatically obtains the digest-pinned Python 3.12.16 runtime and
+uses an isolated environment under `.build`; the first build needs network
+access. Global Python and the normal development `.venv` remain separate.
 
 ```bash
 export NEST_SIGN_IDENTITY='Apple Development'
@@ -74,6 +77,7 @@ crash-left partial-file cleanup still needs hardening.
 
 ```bash
 swift test
+source scripts/build_environment.sh
 uv run --locked python -m unittest discover -s tests -v
 '.build/StoreDerived/Build/Products/Debug/Nest Player.app/Contents/MacOS/NestPlayer' --service-smoke
 ```
@@ -81,6 +85,8 @@ uv run --locked python -m unittest discover -s tests -v
 The explicit DEBUG-only probe runs in the actual signed sandboxed app. It starts
 the bundled service, fetches the phone controller, generates a tiny silent CAF
 inside its container, exports/caches audio, and fetches a native byte range.
+It also compares the running helper's Python/OpenSSL/Expat versions with the
+packaged inventory.
 It never discovers a speaker, plays Cast audio, or changes volume. Release
 builds omit the probe.
 

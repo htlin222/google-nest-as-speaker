@@ -15,7 +15,8 @@
   - [x] Exclude unused runtime build/tagging packages; retest packaged YouTube/Bilibili/phone IPC.
   - [x] Package dependency inventory, full notices, pinned zeroconf/certifi sources and runtime license provenance.
   - [x] Add per-bundle API-reason manifests and signed-artifact dependency/path checks.
-  - [ ] Qualify/update CPython/OpenSSL security baseline; complete final source/relink/distribution review.
+  - [x] Pin and test CPython 3.12.16/OpenSSL 3.5.9/Expat 2.9.0 with isolated packaging bootstrap.
+  - [ ] Complete final source/relink/distribution review.
   - [ ] Complete selected-file/restart/SMB/Cast acceptance, format and licensing audit.
   - [ ] Resolve Store website scope and distribution signing/export.
 - [ ] Archive/sign/upload; complete accurate App Store metadata and screenshots.

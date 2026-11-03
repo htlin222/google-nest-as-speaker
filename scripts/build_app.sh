@@ -2,6 +2,7 @@
 set -euo pipefail
 
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+source "$repo_dir/scripts/build_environment.sh"
 app_dir="$repo_dir/dist/Nest Player.app"
 bin_dir=$(swift build --package-path "$repo_dir" -c release --show-bin-path)
 mkdir -p "$repo_dir/.build" "$repo_dir/dist"

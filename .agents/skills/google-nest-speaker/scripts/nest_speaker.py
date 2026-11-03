@@ -11,10 +11,12 @@ import http.server
 import json
 import mimetypes
 import os
+import pyexpat
 from pathlib import Path
 import re
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import tempfile
@@ -48,6 +50,10 @@ REMUX_AUDIO_TYPES = {
 }
 CACHE_VERSION = "media-v2"
 CACHE_LIMIT_BYTES = 2 * 1024 * 1024 * 1024
+
+
+def runtime_info() -> dict[str, str]:
+    return {"pythonVersion": sys.version.split()[0], "opensslVersion": ssl.OPENSSL_VERSION, "expatVersion": pyexpat.EXPAT_VERSION}
 
 
 class CliError(RuntimeError):
@@ -997,7 +1003,9 @@ class NestPlayerService:
         request_id = str(request.get("id", ""))
         command = str(request.get("command", ""))
         try:
-            if command == "forgetWebsiteSessions":
+            if command == "runtimeInfo":
+                self.respond(request_id, **runtime_info())
+            elif command == "forgetWebsiteSessions":
                 self.resolved_online.clear()
                 self.respond(request_id)
             elif command == "remoteInfo":
@@ -1068,7 +1076,7 @@ class NestPlayerService:
 
     def run(self) -> int:
         self.remote = RemoteController(self.emit)
-        self.emit("serviceReady", pid=os.getpid(), cache=str(cache_root()))
+        self.emit("serviceReady", pid=os.getpid(), cache=str(cache_root()), **runtime_info())
         try:
             for line in sys.stdin:
                 if not line.strip():

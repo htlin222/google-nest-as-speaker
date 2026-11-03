@@ -50,6 +50,9 @@ struct BackendMessage: Codable, Sendable {
     let pairingCode: String?
     let action: String?
     let value: String?
+    let pythonVersion: String?
+    let opensslVersion: String?
+    let expatVersion: String?
 }
 
 enum CastBackendError: LocalizedError {

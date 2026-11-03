@@ -245,8 +245,8 @@ See `./nest-speaker --help` and `./nest-speaker play --help` for all options.
 
 ## Build the macOS app
 
-Install Xcode or the Swift 6 development toolchain, `uv`, and FFmpeg. Build on
-the architecture you intend to run; the published ZIP is built for arm64.
+Install Xcode or the Swift 6 development toolchain, `uv`, and FFmpeg. The
+qualified packaging target and published ZIP are currently Apple silicon (arm64).
 
 ```bash
 uv sync --locked
@@ -255,6 +255,10 @@ uv sync --locked
 ./scripts/package_release.sh  # Versioned .app ZIP + SHA-256
 open 'dist/Nest Player.app'
 ```
+
+Packaging obtains the digest-pinned Python 3.12.16/OpenSSL 3.5.9 runtime under
+`.build/runtimes` and uses `.build/packaging-venv`; the first build needs network
+access. Global Python and the regular development `.venv` remain separate.
 
 The build freezes the locked Python environment with PyInstaller, generates
 the macOS icon, includes dependency license metadata, and ad-hoc signs the

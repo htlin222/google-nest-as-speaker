@@ -174,7 +174,7 @@ export NEST_SPEAKER_DEVICE='客廳'
 
 ## 建置 macOS App
 
-安裝 Xcode 或 Swift 6 開發工具鏈、`uv` 與 FFmpeg，並在目標架構上建置。公開 ZIP 為 arm64 版本。
+安裝 Xcode 或 Swift 6 開發工具鏈、`uv` 與 FFmpeg。目前已驗證的封裝目標與公開 ZIP 都是 Apple silicon（arm64）。
 
 ```bash
 uv sync --locked
@@ -183,6 +183,8 @@ uv sync --locked
 ./scripts/package_release.sh  # 版本化 ZIP 與 SHA-256
 open 'dist/Nest Player.app'
 ```
+
+封裝時會取得經雜湊固定的 Python 3.12.16／OpenSSL 3.5.9，存放於 `.build/runtimes`，並使用獨立的 `.build/packaging-venv`；第一次建置需要網路。系統 Python 與原本開發用的 `.venv` 維持分開。
 
 建置時使用 PyInstaller 凍結鎖定的 Python 環境、產生 macOS 圖示、附上第三方授權，並執行 ad-hoc 簽署。打包版不會在執行時安裝 Python 套件；FFmpeg／FFprobe 則使用另外安裝的系統工具。
 

@@ -17,6 +17,7 @@ def helper_fingerprint(root: Path) -> str:
     inputs = [root / name for name in (
         "uv.lock", "pyproject.toml", "scripts/build_helper.sh",
         "scripts/collect_bundle_notices.py", "AppStore/HelperPrivacyInfo.xcprivacy",
+        "AppStore/Runtime.lock.json", "scripts/build_environment.sh",
     )]
     inputs += sorted((root / ".agents/skills/google-nest-speaker/scripts").glob("*.py"))
     inputs += sorted((root / "AppStore/RuntimeLicenses").glob("*"))

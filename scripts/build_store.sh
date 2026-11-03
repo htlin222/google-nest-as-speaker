@@ -2,6 +2,7 @@
 # Engineering build only. Upload still requires Store scope and distribution setup.
 set -euo pipefail
 repo_dir=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
+source "$repo_dir/scripts/build_environment.sh"
 cd "$repo_dir"
 : "${NEST_SIGN_IDENTITY:?Set NEST_SIGN_IDENTITY to a local signing identity or its hash}"
 : "${NEST_DEVELOPMENT_TEAM:?Set NEST_DEVELOPMENT_TEAM to your Apple team identifier}"

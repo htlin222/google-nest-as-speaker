@@ -104,6 +104,9 @@ def verify(app: Path) -> dict:
             if failures:
                 raise ValueError(f"External/private library dependency in {path.relative_to(app)}: {failures}")
     inventory = json.loads((resources / "DependencyInventory.json").read_text())
+    baseline = json.loads((Path(__file__).resolve().parents[1] / "AppStore/Runtime.lock.json").read_text())
+    if not inventory.get("runtimeBaselineMatches") or any(inventory[key] != baseline[key] for key in ("pythonVersion", "opensslVersion", "expatVersion")):
+        raise ValueError("Packaged runtime differs from the reviewed security baseline")
     if inventory["frozenPythonModuleCount"] != count:
         raise ValueError("Dependency inventory does not match the frozen artifact")
     if not (resources / "ThirdPartyNotices.txt").stat().st_size:
@@ -111,6 +114,9 @@ def verify(app: Path) -> dict:
     if not inventory.get("runtimeLicenseProfile", {}).get("verified"):
         raise ValueError("Build interpreter lacks a matching reviewed native-runtime license profile")
     runtime = json.loads((resources / "RuntimeNotices/manifest.json").read_text())
+    info = plistlib.loads((app / "Contents/Info.plist").read_bytes())
+    if tuple(map(int, runtime["minimumMacOS"].split("."))) > tuple(map(int, info["LSMinimumSystemVersion"].split("."))):
+        raise ValueError("Embedded runtime requires a newer macOS than the application's minimum")
     library = helper / "Contents/Frameworks" / f"libpython{'.'.join(runtime['pythonVersion'].split('.')[:2])}.dylib"
     actual_uuid = command("/usr/bin/dwarfdump", "--uuid", str(library)).split()[1]
     if actual_uuid != runtime["libraryUUID"]:
@@ -127,6 +133,7 @@ def verify(app: Path) -> dict:
                 raise ValueError(f"Corresponding-source hash differs: {component['name']}")
             sources += 1
     return {"engineeringBundleChecks": "passed", "signedMachOFiles": len(native),
+            "pythonVersion": inventory["pythonVersion"], "opensslVersion": inventory["opensslVersion"], "expatVersion": inventory["expatVersion"],
             "frozenPythonModules": count, "dependencyComponents": len(inventory["components"]),
             "verifiedSourceArchives": sources, "reviewRemaining": inventory["reviewRemaining"]}
 

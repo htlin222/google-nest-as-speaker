@@ -23,6 +23,14 @@ enum BackendSmoke {
     private static func probe() async throws {
         let backend = try CastBackend()
         defer { backend.shutdown() }
+        let inventoryURL = Bundle.main.bundleURL.appending(path: "Contents/Helpers/NestCastService.app/Contents/Resources/DependencyInventory.json")
+        let inventory = try JSONSerialization.jsonObject(with: Data(contentsOf: inventoryURL)) as? [String: Any]
+        let actual = try await backend.request("runtimeInfo")
+        guard actual.pythonVersion == inventory?["pythonVersion"] as? String,
+              actual.opensslVersion == inventory?["opensslVersion"] as? String,
+              actual.expatVersion == inventory?["expatVersion"] as? String else {
+            throw CastBackendError.commandFailed("Running helper differs from the packaged runtime inventory")
+        }
         let response = try await backend.request("remoteInfo")
         guard let text = response.remoteURL, let url = URL(string: text) else {
             throw CastBackendError.commandFailed("Remote service returned no URL")
