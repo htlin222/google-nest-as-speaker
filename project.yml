@@ -32,6 +32,8 @@ targets:
         buildPhase: resources
       - path: LICENSE
         buildPhase: resources
+      - path: AppStore/PrivacyInfo.xcprivacy
+        buildPhase: resources
     settings:
       base:
         INFOPLIST_FILE: AppStore/Info.plist

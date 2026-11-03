@@ -16,8 +16,35 @@ Engineering progress: XcodeGen 2.46 target, signed nested NestCastService.app
 entitlements. Sign before copying resources; post-build signing broke incremental
 resource seals and was removed. Entry: scripts/build_store.sh. Initial target:
 arm64, macOS 14+, version 0.2.0 build 3. A development Release archive exists at
-.build/NestPlayer-20261103-115009.xcarchive (ignored, not exported/uploaded;
-includes the cache-pruning/invalidation fixes).
+.build/NestPlayer-20261103-121918.xcarchive (ignored, not exported/uploaded;
+includes cache fixes, privacy manifests and dependency/runtime notices).
+
+Latest packaging work excludes unused Mutagen/PyInstaller/setuptools/pkg_resources
+runtime modules, preserving the bootloader notice. Fresh packaged helper tested
+public YouTube+Bilibili extraction and phone IPC. Module count: 1803 -> 1543;
+file bytes before notices: 49,411,609 -> 47,270,900 (~2 MiB), no measured CPU/RAM
+claim. collect_bundle_notices.py inspects actual PYZ modules, includes 15 component
+notices, and bundles hash-checked zeroconf/certifi sdists from uv.lock. A modified
+local library can rebuild; inventory flags modified source packaging as pending.
+
+Runtime is CPython 3.12.11 (Aug 18 2025), OpenSSL 3.0.16. Its native security
+patch baseline still needs qualification/update before commercial release.
+Downloaded upstream PBS 20250818 full archive into .build/runtime-licensing;
+SHA256 matches release digest 29fb93c5166340d0d68a77f3aef2bdb8fd65a988e84746ce69d8cd5ec6b57a27.
+Installed stripped libpython has the same Mach-O UUID as the full artifact.
+import_runtime_notices.py imports 13 matching native-runtime license texts with
+provenance in AppStore/RuntimeLicenses. A changed interpreter requires a new
+verified profile. collect_bundle_notices.py includes that profile; Store bundle
+checks reject an unreviewed runtime profile.
+
+verify_store_bundle.py checks signatures, same signing team, exact helper
+inheritance entitlements, reviewed API reason manifests, source/license hashes,
+actual runtime UUID, no escaping symlinks and no external/private load commands
+or rpaths. Current Release has 66 Mach-O files, 1543 modules and two verified
+source archives. API manifests describe native UserDefaults/file metadata and
+helper cache metadata/elapsed timers; final data-use questionnaire is pending.
+See docs/app-store/dependencies.md and privacy-review.md. License notices/source
+materials are engineering evidence, not full legal/Store clearance.
 
 FileAccessStore persists scoped bookmarks, resolves lazily, maps relocated
 folders and retains offline grants. The APP_STORE local-media path now uses

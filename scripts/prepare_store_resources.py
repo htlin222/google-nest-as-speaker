@@ -14,8 +14,12 @@ import tempfile
 
 def helper_fingerprint(root: Path) -> str:
     digest = hashlib.sha256(sys.version.encode())
-    inputs = [root / name for name in ("uv.lock", "pyproject.toml", "scripts/build_helper.sh")]
+    inputs = [root / name for name in (
+        "uv.lock", "pyproject.toml", "scripts/build_helper.sh",
+        "scripts/collect_bundle_notices.py", "AppStore/HelperPrivacyInfo.xcprivacy",
+    )]
     inputs += sorted((root / ".agents/skills/google-nest-speaker/scripts").glob("*.py"))
+    inputs += sorted((root / "AppStore/RuntimeLicenses").glob("*"))
     for path in inputs:
         digest.update(str(path.relative_to(root)).encode())
         digest.update(path.read_bytes())

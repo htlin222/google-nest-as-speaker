@@ -11,7 +11,9 @@ not a Mac App Store archive and should not be uploaded as though it were one.
 | Signing | Apple Development identity only | Configure the appropriate distribution signing and provisioning |
 | Packaging | Xcode project and signed development Release archive verified | Configure and validate distribution export/upload |
 | Sandbox | Native bookmarks/file serving; parent sandbox and inheriting helper verified | Complete selected-file/restart/SMB/Cast acceptance |
-| Media tools | Engineering Store local-media path uses AVFoundation and a cache | Finish format/license audit; website JS runtime unresolved |
+| Media tools | Engineering Store local-media path uses AVFoundation and a cache | Finish format/runtime-security review; website JS runtime unresolved |
+| Dependency notices | Frozen inventory, upstream notices, two checked source archives and matching runtime license profile packaged | Complete distribution-terms/source/relink review |
+| Privacy | Per-bundle API-use manifests and data-flow inventory prepared | Confirm final edition, public policy and App Store questionnaire |
 | Website media | yt-dlp extraction and explicit browser-cookie opt-in | Confirm authorization and Store edition scope; do not conceal functionality |
 | Store assets | GitHub demo artwork available | Capture the actual submitted edition and complete accurate localizations |
 | Commercial setup | Price, territories and agreements unconfirmed | Account holder chooses and completes required declarations |
@@ -39,6 +41,11 @@ signature verification, without `get-task-allow` in its application entitlements
 This is not a distribution export or complete end-to-end acceptance test.
 Dependency licensing, website scope, physical playback and selected-file access
 still need completion.
+
+The [dependency record](dependencies.md) now identifies shipped runtime code and
+preserves its notices/source materials; it excludes optional tagging and build
+packages. [Privacy implementation notes](privacy-review.md) map stored/shared
+data and API reasons without inventing final App Store questionnaire answers.
 
 No account contract, paid enrollment, final price, export declaration, privacy
 declaration, or submission has been accepted or invented by the agent.

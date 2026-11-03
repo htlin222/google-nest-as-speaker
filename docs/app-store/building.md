@@ -20,6 +20,8 @@ icons and the Xcode project, signs embedded code before Xcode copies it, builds
 the native app, and verifies the complete signature. Post-build resource signing
 can invalidate incremental outer signatures. Helper inputs are fingerprinted;
 changed scripts or lockfiles trigger a fresh freeze. Generated files are ignored.
+The build also generates [dependency notices and source archives](dependencies.md)
+and runs `scripts/verify_store_bundle.py` on the signed product.
 
 For a Release archive:
 
@@ -91,7 +93,7 @@ the native production pipeline does not invoke it.
 
 Still required: actual selected-file/drag/drop grants after restart, real SMB
 and Cast acceptance, phone browser pairing, broad format/cancellation testing,
-dependency/license audit, final privacy declarations and Store export validation.
+remaining distribution/license review, final privacy declarations and Store export validation.
 Website extraction/login scope remains undecided; resolve it before claiming
 readiness for review.
 

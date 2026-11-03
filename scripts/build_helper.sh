@@ -18,7 +18,8 @@ freeze_options=(--onedir --console --contents-directory .
   --recursive-copy-metadata pychromecast \
   --recursive-copy-metadata yt-dlp \
   --collect-all yt_dlp --collect-all yt_dlp_ejs \
-  --copy-metadata setuptools --copy-metadata pyinstaller \
+  --exclude-module mutagen --exclude-module PyInstaller \
+  --exclude-module setuptools --exclude-module pkg_resources \
   --name nest-service --specpath "$helper_build")
 entry="$repo_dir/.agents/skills/google-nest-speaker/scripts/nest_speaker.py"
 if [ "$mode" = app ]; then
@@ -42,4 +43,9 @@ else
 fi
 mkdir -p "$(dirname -- "$destination")"
 cp -R "$product" "$destination"
+uv run --locked --project "$repo_dir" --group dev python \
+  "$repo_dir/scripts/collect_bundle_notices.py" "$destination"
+if [ "$mode" = app ]; then
+  cp "$repo_dir/AppStore/HelperPrivacyInfo.xcprivacy" "$destination/Contents/Resources/PrivacyInfo.xcprivacy"
+fi
 echo "$destination"

@@ -31,5 +31,5 @@ else
   app_path="$repo_dir/.build/StoreDerived/Build/Products/$configuration/Nest Player.app"
 fi
 xcodebuild "${arguments[@]}"
-codesign --verify --deep --strict "$app_path"
+uv run --locked --group dev python scripts/verify_store_bundle.py "$app_path"
 echo "$app_path"
