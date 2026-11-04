@@ -747,6 +747,8 @@ def prepare_cached_media(
 class NestPlayerService:
     """One long-lived owner for discovery, Cast connection and playback."""
 
+    IDLE_GRACE_SECONDS = 10.0
+
     def __init__(self, args: argparse.Namespace) -> None:
         self.args = args
         self.output_lock = threading.Lock()
@@ -984,6 +986,7 @@ class NestPlayerService:
         last_state: str | None = None
         last_progress = 0.0
         lost_since: float | None = None
+        idle_since: float | None = None
         while not stop_event.wait(0.15):
             status = controller.status
             content_id = status.content_id
@@ -1011,12 +1014,21 @@ class NestPlayerService:
                     )
                     last_progress = now
                 if state == "IDLE":
-                    reason = status.idle_reason or "UNKNOWN"
+                    reason = status.idle_reason
                     if reason == "FINISHED":
                         self.emit("completed", generation=generation, reason=reason)
-                    else:
+                        return
+                    if reason:
                         self.emit("failed", generation=generation, message=f"Cast playback ended: {reason}")
-                    return
+                        return
+                    # A real end always carries an idle reason; a bare IDLE is the receiver
+                    # momentarily between load/seek states while audio keeps playing.
+                    idle_since = idle_since or now
+                    if now - idle_since > self.IDLE_GRACE_SECONDS:
+                        self.emit("failed", generation=generation, message="Cast playback ended without a reason")
+                        return
+                else:
+                    idle_since = None
             elif owned_session is not None:
                 lost_since = lost_since or now
                 if now - lost_since > 5:

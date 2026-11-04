@@ -191,6 +191,34 @@ class PlaybackOwnershipTests(unittest.TestCase):
         service.monitor_owned_playback(controller, "owned", 5, threading.Event(), 1)
         self.assertIn("completed", [event for event, _ in events])
 
+    def test_transient_idle_without_reason_does_not_end_playback(self) -> None:
+        service, events = self.service()
+        controller = _FakeController([
+            _FakeStatus("PLAYING", "owned", 9),
+            _FakeStatus("IDLE", "owned", 9),
+            _FakeStatus("IDLE", "owned", 9),
+            _FakeStatus("PLAYING", "owned", 9),
+            _FakeStatus("IDLE", "owned", 9, "FINISHED"),
+        ])
+        service.monitor_owned_playback(controller, "owned", 5, threading.Event(), 1)
+        names = [event for event, _ in events]
+        self.assertNotIn("failed", names)
+        self.assertEqual(names[-1], "completed")
+
+    def test_persistent_idle_without_reason_eventually_fails(self) -> None:
+        service, events = self.service()
+        controller = _FakeController([_FakeStatus("PLAYING", "owned", 9), _FakeStatus("IDLE", "owned", 9)])
+        with mock.patch.object(nest_speaker.NestPlayerService, "IDLE_GRACE_SECONDS", 0.3):
+            service.monitor_owned_playback(controller, "owned", 5, threading.Event(), 1)
+        self.assertEqual(events[-1][0], "failed")
+        self.assertIn("without a reason", events[-1][1]["message"])
+
+    def test_idle_with_error_reason_fails_immediately(self) -> None:
+        service, events = self.service()
+        controller = _FakeController([_FakeStatus("PLAYING", "owned", 9), _FakeStatus("IDLE", "owned", 9, "ERROR")])
+        service.monitor_owned_playback(controller, "owned", 5, threading.Event(), 1)
+        self.assertEqual(events[-1], ("failed", {"generation": 5, "message": "Cast playback ended: ERROR"}))
+
     def test_older_play_request_is_discarded(self) -> None:
         service, _ = self.service()
         service.generation = 10
