@@ -213,6 +213,24 @@ enum SleepTimerChoice: Hashable, Sendable {
 
     static let presets = [15, 30, 45, 60, 90]
 
+    /// Phone-remote encoding: minutes as digits, or "track".
+    init?(remoteValue: String) {
+        if remoteValue == "track" {
+            self = .endOfTrack
+        } else if let minutes = Int(remoteValue), Self.presets.contains(minutes) {
+            self = .minutes(minutes)
+        } else {
+            return nil
+        }
+    }
+
+    var remoteValue: String {
+        switch self {
+        case .minutes(let minutes): String(minutes)
+        case .endOfTrack: "track"
+        }
+    }
+
     var label: String {
         switch self {
         case .minutes(let minutes): "\(minutes) minutes"

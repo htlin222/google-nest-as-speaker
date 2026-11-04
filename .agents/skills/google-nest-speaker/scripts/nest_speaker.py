@@ -674,6 +674,12 @@ def cache_root() -> Path:
     return root
 
 
+def remote_token_path() -> Path:
+    configured = os.environ.get("NEST_PLAYER_STATE_DIR")
+    root = Path(configured).expanduser() if configured else Path.home() / "Library/Application Support/NestPlayer"
+    return root / "remote-token"
+
+
 def media_cache_key(source: Path) -> str:
     stat = source.stat()
     fingerprint = f"{CACHE_VERSION}\0{source}\0{stat.st_size}\0{stat.st_mtime_ns}"
@@ -1053,7 +1059,12 @@ class NestPlayerService:
                 self.respond(request_id)
             elif command == "remoteInfo":
                 if self.remote is None:
-                    self.remote = RemoteController(self.emit)
+                    self.remote = RemoteController(self.emit, remote_token_path())
+                self.respond(request_id, **self.remote.info())
+            elif command == "remoteReset":
+                if self.remote is None:
+                    self.remote = RemoteController(self.emit, remote_token_path())
+                self.remote.reset()
                 self.respond(request_id, **self.remote.info())
             elif command == "remoteState":
                 state = json.loads(str(request.get("state", "{}")))
@@ -1136,7 +1147,7 @@ class NestPlayerService:
         self.respond(request_id)
 
     def run(self) -> int:
-        self.remote = RemoteController(self.emit)
+        self.remote = RemoteController(self.emit, remote_token_path())
         self.emit("serviceReady", pid=os.getpid(), cache=str(cache_root()), **runtime_info())
         try:
             for line in sys.stdin:

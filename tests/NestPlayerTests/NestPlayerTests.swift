@@ -260,3 +260,11 @@ private func at(_ day: Int, _ hour: Int, _ minute: Int, _ second: Int = 0) -> Da
     #expect(AlarmSchedule.nextFire(Alarm(hour: 7, minute: 0, playlistID: playlist), after: at(4, 7, 0), calendar: taipei) == at(5, 7, 0))
     #expect(AlarmSchedule.nextFire(Alarm(isEnabled: false, hour: 7, minute: 0, playlistID: playlist), after: at(4, 6, 0), calendar: taipei) == nil)
 }
+
+@Test func sleepChoiceRoundTripsThroughThePhoneRemote() {
+    for choice in SleepTimerChoice.presets.map(SleepTimerChoice.minutes) + [.endOfTrack] {
+        #expect(SleepTimerChoice(remoteValue: choice.remoteValue) == choice)
+    }
+    #expect(SleepTimerChoice(remoteValue: "off") == nil)
+    #expect(SleepTimerChoice(remoteValue: "17") == nil)
+}
