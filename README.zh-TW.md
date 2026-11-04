@@ -38,7 +38,7 @@ Nest Player 是使用 SwiftUI 製作的原生 macOS 播放器，支援播放清�
 
 預先編譯的 `.app` 適用於 **Apple Silicon（M1 或更新）與 macOS 14 Sonoma 以上版本**。目前 Release 未提供 Intel 執行檔。
 
-1. 前往 [Releases](https://github.com/htlin222/google-nest-as-speaker/releases/latest)，下載 `Nest-Player-0.3.0-macOS-arm64.zip`。
+1. 前往 [Releases](https://github.com/htlin222/google-nest-as-speaker/releases/latest)，下載 `Nest-Player-0.3.1-macOS-arm64.zip`。
 2. 解壓縮，將 **Nest Player.app** 移到「應用程式」。
 3. 開啟程式；若 macOS 詢問，允許區域網路存取。
 4. 選擇 Cast 喇叭，加入或拖入媒體檔，按下播放。
@@ -60,7 +60,7 @@ brew install ffmpeg
 每個 Release 均附 SHA-256 校驗檔，可在解壓縮前驗證：
 
 ```bash
-shasum -a 256 -c Nest-Player-0.3.0-macOS-arm64.zip.sha256
+shasum -a 256 -c Nest-Player-0.3.1-macOS-arm64.zip.sha256
 ```
 
 ## 功能
@@ -249,7 +249,7 @@ uv run python scripts/smoke_bundle.py \
   title = {{Nest Player}: macOS audio player for Google Nest and Chromecast speakers},
   year = {2026},
   url = {https://github.com/htlin222/google-nest-as-speaker},
-  version = {0.3.0}
+  version = {0.3.1}
 }
 ```
 
