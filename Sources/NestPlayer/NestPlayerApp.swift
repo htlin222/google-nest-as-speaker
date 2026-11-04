@@ -42,6 +42,10 @@ struct NestPlayerApp: App {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     weak var model: PlayerModel?
 
+    /// Single-window app with no menu-bar item: closing the window must not leave
+    /// an invisible app still casting, so it quits and stops the speaker.
+    func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool { true }
+
     func applicationWillTerminate(_ notification: Notification) {
         model?.shutdown()
     }
