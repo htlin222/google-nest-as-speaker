@@ -9,8 +9,15 @@ final class PlayerModel {
     private static let playlistDefaultsKey = "playlistPaths"
     private static let devicesDefaultsKey = "cachedCastDevices"
     private static let playlistRecordsKey = "playlistRecordsV2"
+    private static let libraryKey = "playlistLibraryV3"
 
-    var playlist: [Track] = []
+    var library = PlaylistLibrary(playlists: [])
+    /// Tracks of the playlist shown in the sidebar; playback always follows it.
+    var playlist: [Track] {
+        get { library.current.tracks }
+        set { library.current.tracks = newValue }
+    }
+    var currentPlaylist: Playlist { library.current }
     /// The single "current" track used by play/next/previous.
     var selectedTrackID: Track.ID? {
         didSet {
@@ -34,8 +41,12 @@ final class PlayerModel {
     var duration = 0.0
     var volume = 50.0
     var localAudioEnabled = false
-    var repeatMode = RepeatMode(rawValue: UserDefaults.standard.string(forKey: "repeatMode") ?? "") ?? .off {
-        didSet { UserDefaults.standard.set(repeatMode.rawValue, forKey: "repeatMode") }
+    var repeatMode: RepeatMode {
+        get { library.current.repeatMode }
+        set {
+            library.current.repeatMode = newValue
+            savePlaylist()
+        }
     }
     var statusDetail = "Starting Cast service…"
     var isDropTarget = false
@@ -59,6 +70,9 @@ final class PlayerModel {
     @ObservationIgnored private var browserSessions: [String: String] = [:]
     @ObservationIgnored private var folderTask: Task<FolderScan, any Error>?
     @ObservationIgnored private var fileAccess: FileAccessStore?
+    /// Seconds to seek to once the given playback generation reports PLAYING.
+    @ObservationIgnored private var pendingResume: (generation: Int, seconds: Double)?
+    @ObservationIgnored private var lastResumeSave = Date.distantPast
     #if APP_STORE
     @ObservationIgnored private let nativePreparer = NativeMediaPreparer()
     @ObservationIgnored private var nativeMediaServer: NativeMediaServer?
@@ -78,6 +92,7 @@ final class PlayerModel {
             ("file:///Demo/Piano%20in%20the%20Rain.flac", "Piano in the Rain"),
             ("file:///Demo/Night%20Train.mp4", "Night Train — Film Study"),
         ]
+        library = PlaylistLibrary(playlists: [Playlist(name: "Focus"), Playlist(name: "Bedtime"), Playlist(name: "Kids Stories")])
         playlist = samples.enumerated().map { index, sample in
             var track = Track(id: UUID(uuidString: String(format: "00000000-0000-4000-8000-%012d", index + 1))!, url: URL(string: sample.0)!)
             track.resolvedTitle = sample.1
@@ -125,15 +140,25 @@ final class PlayerModel {
             if !devices.isEmpty { statusDetail = "Ready to cast to \(selectedDeviceName)" }
         }
 
-        if let data = UserDefaults.standard.data(forKey: Self.playlistRecordsKey),
-           let tracks = try? JSONDecoder().decode([Track].self, from: data) {
-            // Keep offline network files and website links so reconnecting can restore playback.
-            playlist = tracks
+        // Keep offline network files and website links so reconnecting can restore playback.
+        if let data = UserDefaults.standard.data(forKey: Self.libraryKey),
+           let saved = try? JSONDecoder().decode(PlaylistLibrary.self, from: data) {
+            library = saved
         } else {
-            let savedPaths = UserDefaults.standard.stringArray(forKey: Self.playlistDefaultsKey) ?? []
-            playlist = savedPaths.map { Track(url: URL(fileURLWithPath: $0)) }
+            let legacyTracks: [Track]
+            if let data = UserDefaults.standard.data(forKey: Self.playlistRecordsKey),
+               let tracks = try? JSONDecoder().decode([Track].self, from: data) {
+                legacyTracks = tracks
+            } else {
+                let savedPaths = UserDefaults.standard.stringArray(forKey: Self.playlistDefaultsKey) ?? []
+                legacyTracks = savedPaths.map { Track(url: URL(fileURLWithPath: $0)) }
+            }
+            let legacyRepeat = RepeatMode(rawValue: UserDefaults.standard.string(forKey: "repeatMode") ?? "") ?? .off
+            library = .migrating(legacyTracks: legacyTracks, repeatMode: legacyRepeat)
+            // V2 stays untouched so a downgrade still finds the old playlist.
+            savePlaylist()
         }
-        selectedTrackID = playlist.first?.id
+        selectedTrackID = resumeSelection()
         configureLocalPlayer(for: selectedTrack)
 
         createdBackend?.setEventHandler { [weak self] message in
@@ -352,6 +377,62 @@ final class PlayerModel {
         savePlaylist()
     }
 
+    // MARK: Playlists
+
+    /// Switching stops playback; the position is kept so switching back resumes it.
+    func selectPlaylist(_ id: Playlist.ID) {
+        guard id != library.currentID else { return }
+        if hasSession { stop() }
+        library.select(id)
+        selectedTrackID = resumeSelection()
+        savePlaylist()
+        statusDetail = "Playlist: \(currentPlaylist.name)"
+    }
+
+    func createPlaylist(named name: String) {
+        if hasSession { stop() }
+        library.create(named: name)
+        selectedTrackID = nil
+        savePlaylist()
+        statusDetail = "Created playlist \(currentPlaylist.name)"
+    }
+
+    func renamePlaylist(_ id: Playlist.ID, to name: String) {
+        library.rename(id, to: name)
+        savePlaylist()
+    }
+
+    func deletePlaylist(_ id: Playlist.ID) {
+        guard library.playlists.count > 1 else { return }
+        let wasCurrent = id == library.currentID
+        if wasCurrent, hasSession { stop() }
+        library.delete(id)
+        if wasCurrent { selectedTrackID = resumeSelection() }
+        savePlaylist()
+    }
+
+    func copyTracks(_ ids: Set<Track.ID>, to playlistID: Playlist.ID) {
+        let tracks = playlist.filter { ids.contains($0.id) }
+        let added = library.copy(tracks, to: playlistID)
+        let name = library.playlists.first { $0.id == playlistID }?.name ?? "playlist"
+        statusDetail = added == 0 ? "Already in \(name)" : "Added \(added) track\(added == 1 ? "" : "s") to \(name)"
+        savePlaylist()
+    }
+
+    private func resumeSelection() -> Track.ID? {
+        let current = library.current
+        if let id = current.resumeTrackID, current.tracks.contains(where: { $0.id == id }) { return id }
+        return current.tracks.first?.id
+    }
+
+    /// Remembers where the current playlist is; persisted at most every 5 s while playing.
+    private func recordResume(_ trackID: Track.ID, at seconds: Double, persist: Bool = false) {
+        guard playlist.contains(where: { $0.id == trackID }) else { return }
+        library.current.resumeTrackID = trackID
+        library.current.resumePosition = seconds.isFinite ? max(seconds, 0) : 0
+        if persist || Date().timeIntervalSince(lastResumeSave) >= 5 { savePlaylist() }
+    }
+
     func clearPlaylist() {
         playlist.removeAll()
         selectedTrackID = nil
@@ -378,12 +459,12 @@ final class PlayerModel {
 
     func playSelected() {
         guard let track = selectedTrack else { return }
-        requestPlayback(of: track)
+        requestPlayback(of: track, startAt: currentPlaylist.resumeStart(for: track.id))
     }
 
     func play(track: Track) {
         selectedTrackID = track.id
-        requestPlayback(of: track)
+        requestPlayback(of: track, startAt: currentPlaylist.resumeStart(for: track.id))
     }
 
     func previousTrack() {
@@ -405,10 +486,15 @@ final class PlayerModel {
         requestPlayback(of: track)
     }
 
-    func pause() { sendControl("pause", targetPhase: .paused, detail: "Playback paused") }
+    func pause() {
+        if let activeTrack { recordResume(activeTrack.id, at: currentTime, persist: true) }
+        sendControl("pause", targetPhase: .paused, detail: "Playback paused")
+    }
     func resume() { sendControl("resume", targetPhase: .playing, detail: "Casting to \(selectedDeviceName)") }
 
     func stop() {
+        if let activeTrack { recordResume(activeTrack.id, at: currentTime, persist: true) }
+        pendingResume = nil
         authenticationRequest = nil
         generation += 1
         let stoppedGeneration = generation
@@ -479,6 +565,8 @@ final class PlayerModel {
     func refreshStatus() {}
 
     func shutdown() {
+        if let activeTrack { recordResume(activeTrack.id, at: currentTime) }
+        savePlaylist()
         generation += 1
         transitionTask?.cancel()
         volumeTask?.cancel()
@@ -493,11 +581,13 @@ final class PlayerModel {
         fileAccess?.close()
     }
 
-    private func requestPlayback(of track: Track, browserOverride: String? = nil) {
+    private func requestPlayback(of track: Track, startAt: Double = 0, browserOverride: String? = nil) {
         guard let backend, let castDevice = selectedDevice else { return }
         authenticationRequest = nil
         generation += 1
         let requestGeneration = generation
+        pendingResume = startAt > 0 ? (requestGeneration, startAt) : nil
+        recordResume(track.id, at: startAt, persist: true)
         let device = castDevice.name
         let host = castDevice.host
         transitionTask?.cancel()
@@ -653,6 +743,7 @@ final class PlayerModel {
                 if localAudioEnabled { localAudioPlayer?.play() }
                 phase = .playing
                 statusDetail = "Casting to \(selectedDeviceName)"
+                applyPendingResume()
             case "PAUSED": localPlayer?.pause(); localAudioPlayer?.pause(); phase = .paused
             case "BUFFERING": phase = .connecting
             default: break
@@ -660,6 +751,8 @@ final class PlayerModel {
         case "progress":
             updateTimes(event)
             synchronizeLocalPlayer(to: event.currentTime ?? currentTime)
+            applyPendingResume()
+            if pendingResume == nil, let activeTrack { recordResume(activeTrack.id, at: currentTime) }
         case "completed":
             #if APP_STORE
             nativeMediaServer?.close()
@@ -673,7 +766,10 @@ final class PlayerModel {
             phase = .idle
             currentTime = 0
             statusDetail = "Finished \(finished?.title ?? "track")"
-            if let finished { playNext(after: finished) }
+            if let finished {
+                recordResume(finished.id, at: 0, persist: true)
+                playNext(after: finished)
+            }
         case "failed":
             #if APP_STORE
             nativeMediaServer?.close()
@@ -686,6 +782,18 @@ final class PlayerModel {
             phase = .failed(event.message ?? "Cast playback failed")
             statusDetail = event.message ?? "Cast playback failed"
         default: break
+        }
+    }
+
+    /// Seeks once Cast is playing and knows the duration; seeking earlier would clamp to 0.
+    private func applyPendingResume() {
+        guard let resume = pendingResume, resume.generation == generation,
+              phase == .playing, duration > 0
+        else { return }
+        pendingResume = nil
+        if resume.seconds < duration - 5 {
+            seek(to: resume.seconds)
+            statusDetail = "Resumed at \(TimeText.format(resume.seconds))"
         }
     }
 
@@ -703,8 +811,12 @@ final class PlayerModel {
     }
 
     private func savePlaylist() {
-        if let data = try? JSONEncoder().encode(playlist) {
-            UserDefaults.standard.set(data, forKey: Self.playlistRecordsKey)
+        #if DEBUG
+        if isDocumentationPreview { return }
+        #endif
+        lastResumeSave = Date()
+        if let data = try? JSONEncoder().encode(library) {
+            UserDefaults.standard.set(data, forKey: Self.libraryKey)
         }
     }
 
