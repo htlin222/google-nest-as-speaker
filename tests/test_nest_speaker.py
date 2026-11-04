@@ -243,8 +243,28 @@ class PlaybackOwnershipTests(unittest.TestCase):
                 service.respond = mock.Mock()
                 service.handle_control("probe", "status", {"fresh": True})
                 self.assertEqual(service.respond.call_args.kwargs["probeIdle"], expected)
-                cast.receiver_controller.set_volume.assert_not_called()
+                cast.set_volume.assert_not_called()
                 cast.media_controller.play_media.assert_not_called()
+
+    def test_volume_uses_the_chromecast_api_that_pychromecast_provides(self) -> None:
+        # PyChromecast 14 binds set_volume on the Chromecast instance; there is no
+        # `receiver_controller` attribute, so a strict fake (not a Mock) catches misuse.
+        class StrictCast:
+            def __init__(self) -> None:
+                self.calls: list[tuple[float, float]] = []
+                self.media_controller = mock.Mock()
+
+            def set_volume(self, volume: float, timeout: float = 10) -> float:
+                self.calls.append((volume, timeout))
+                return volume
+
+        self.assertFalse(hasattr(nest_speaker.pychromecast.Chromecast, "receiver_controller"))
+        service, _ = self.service()
+        service.cast = StrictCast()
+        service.respond = mock.Mock()
+        service.handle_control("v1", "volume", {"level": 37})
+        self.assertEqual(service.cast.calls, [(0.37, 5)])
+        self.assertEqual(service.respond.call_args.kwargs["volume"], 37)
 
     def test_protocol_trace_excludes_media_urls_and_metadata(self) -> None:
         messages: list[str] = []

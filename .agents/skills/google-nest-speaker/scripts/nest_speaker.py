@@ -526,7 +526,7 @@ def wait_for_playback(
 def play_media(args: argparse.Namespace) -> int:
     with connected_cast(args.device, args.host, args.timeout) as cast:
         if args.volume is not None:
-            cast.receiver_controller.set_volume(args.volume / 100.0, timeout=args.timeout)
+            cast.set_volume(args.volume / 100.0, timeout=args.timeout)
 
         if website_name(args.source):
             cancel = threading.Event()
@@ -632,7 +632,7 @@ def control(args: argparse.Namespace) -> int:
                 currentTime=args.seconds,
             )
         elif args.command == "volume":
-            actual = cast.receiver_controller.set_volume(args.level / 100.0, timeout=args.timeout)
+            actual = cast.set_volume(args.level / 100.0, timeout=args.timeout)
             emit(
                 args,
                 "volume",
@@ -1113,7 +1113,7 @@ class NestPlayerService:
         elif command == "seek":
             controller.seek(float(request["seconds"]))
         elif command == "volume":
-            actual = cast.receiver_controller.set_volume(float(request["level"]) / 100, timeout=5)
+            actual = cast.set_volume(float(request["level"]) / 100, timeout=5)
             self.respond(request_id, volume=round(actual * 100))
             return
         elif command == "status":
