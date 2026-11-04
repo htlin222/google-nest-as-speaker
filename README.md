@@ -18,7 +18,9 @@ SwiftUI media player with playlists, local video playback, and Google Cast audio
 output over your local network.
 
 Paste a **YouTube or Bilibili link**, add a local or **SMB network folder**, and
-control playback from an **iPhone browser by scanning a QR code**.
+control playback from an **iPhone browser by scanning a QR code**. Keep
+**separate playlists that resume where you stopped**, fall asleep with a
+**fade-out sleep timer**, and wake up to a playlist with **alarms**.
 
 Watch a video on your Mac while its sound plays on a Nest speaker in another
 room. Mac audio is muted by default; enable **Mac audio** for simultaneous output
@@ -30,14 +32,14 @@ from both devices. A Python CLI is included for scripts and automation.
 
 ![Nest Player feature overview: native Mac player, local and SMB library, website links, and an iPhone browser remote](assets/screenshots/feature-overview.png)
 
-*GitHub edition product preview with fictional media and device data. The phone
+_GitHub edition product preview with fictional media and device data. The phone
 controller is captured from the real interface using Playwright; the native view
-uses an isolated demo fixture. [Capture sources and reproduction](docs/screenshots/README.md).*
+uses an isolated demo fixture. [Capture sources and reproduction](docs/screenshots/README.md)._
 
 ## See it in action
 
-| Native macOS playback panel | iPhone browser remote |
-| --- | --- |
+| Native macOS playback panel                                                                                         | iPhone browser remote                                                                                                                                                    |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | ![Native Nest Player interface with a fictional playlist and Mac audio muted](assets/screenshots/native-player.png) | <img src="assets/screenshots/iphone-remote.png" width="270" alt="Playwright screenshot of the real iPhone remote: playback, volume, playlist and website link controls"> |
 
 The examples demonstrate one shared playback queue: choose media on your Mac,
@@ -86,35 +88,72 @@ Each release includes a SHA-256 file. To verify the download before extracting:
 shasum -a 256 -c Nest-Player-0.3.1-macOS-arm64.zip.sha256
 ```
 
+## What you can do with it
+
+- **Study or recitation audio:** keep a "Poems" playlist next to "Music" and
+  "Kids' stories". Switch between them and each picks up at the same track and
+  second where you stopped — even after quitting the app.
+- **Fall asleep to music:** set the sleep timer, and the speaker fades out over
+  the last 30 seconds, stops, then returns to its original volume so tomorrow
+  doesn't start silent.
+- **Wake up to a playlist:** an alarm starts a chosen playlist at 07:00 on
+  weekdays while the Mac sits on your desk.
+- **Control it from the kitchen:** anyone at home scans a QR code once, adds the
+  remote to their Home Screen, and can pause, skip, switch playlists, or set the
+  sleep timer from their phone.
+- **Watch here, listen there:** a video plays on the Mac while its soundtrack
+  plays on the Nest in another room.
+
 ## Features
 
+### Sources
+
+- **Local files and video soundtracks:** drag in audio or video; video plays on
+  the Mac while only its audio goes to the speaker.
 - **YouTube and Bilibili:** paste a video link or share text, including short
   URLs; resolve audio for Cast and up-to-720p H.264 video for the local preview.
 - **Browser-session login:** sign in through the website in your browser, then
   explicitly allow Nest Player to use that browser session.
 - **Folders and SMB:** import media recursively from local folders or shares
   mounted by Finder, with background scanning and retained offline entries.
-- **iPhone remote:** scan a QR code or enter the Mac's pairing code in a local
-  browser controller, with transport, seeking, volume, playlist switching,
-  repeat, sleep timer, and link input. Add it to the Home Screen and pair once;
-  **Reset Pairing** on the Mac unpairs every phone.
+
+### Playlists and resume
+
+- **Multiple playlists:** create, rename, switch, and delete named playlists
+  from the sidebar; **Add to Playlist** copies tracks between them.
+- **Resume where you left off:** each playlist remembers its current track and
+  position, saved on pause, stop, quit, and every few seconds while playing.
+- **Playlist editing:** drag and drop, multi-select removal (Delete key),
+  rename tracks, sort by name (A→Z / Z→A, so "Track 2" comes before
+  "Track 10"), and confirm before clearing.
+- **Repeat:** off → whole playlist → current track, saved per playlist.
+
+### Sleep timer and alarms
+
+- **Sleep timer:** stop after 15, 30, 45, 60, or 90 minutes, or at the end of the
+  current track. The Nest volume fades out over the last 30 seconds and is
+  restored after stopping. Touching the volume during the fade cancels the timer
+  and keeps your level. The remaining time shows under the title.
+- **Alarms:** start a playlist from its first track at a set time — every day or
+  on chosen weekdays — each with its own on/off switch. Alarms never interrupt
+  something already playing, never change the volume, and skip an occurrence
+  missed by more than two minutes (so a Mac waking up hours late stays quiet).
+  The app must be open and the Mac awake.
+
+### Speaker and phone
+
 - **Cast local audio:** stream files to Google Nest, Google Home, and Google
   Cast audio groups without uploading them to a cloud service.
-- **Local video + Cast sound:** watch supported videos on the Mac while their
-  audio plays through the selected speaker.
-- **Optional dual audio:** Mac audio starts muted; turn it on when both rooms
-  should hear the media.
-- **Multiple playlists:** create, rename, switch, and delete named playlists;
-  copy tracks between them. Each remembers its track and position and resumes
-  there.
-- **Playlist editing:** drag and drop, multi-select removal (Delete key),
-  rename tracks, sort by name (A→Z / Z→A), and confirm before clearing.
-- **Repeat:** off, whole playlist, or current track — per playlist.
-- **Sleep timer:** stop after 15–90 minutes or at the end of the track, fading
-  out over the last 30 seconds and then restoring the speaker volume.
-- **Alarms:** start a playlist at a set time on chosen weekdays (the app must be
-  open and the Mac awake; volume is never changed).
+- **Optional dual audio:** Mac audio starts muted; turn on **Mac audio** when
+  both rooms should hear the media.
 - **Playback controls:** pause, resume, stop, seek, and adjust Cast volume.
+- **iPhone remote:** a browser controller with transport, seeking, volume,
+  playlist switching, repeat, sleep timer, and link input. Pair once by QR code
+  or six-digit code; the pairing survives app restarts and Home Screen use.
+  **Reset Pairing** on the Mac unpairs every phone.
+
+### Under the hood
+
 - **Fast common-format path:** serve supported audio directly, remux compatible
   video audio tracks, and transcode only when necessary.
 - **Conversion cache:** reuse prepared audio with a 2 GB LRU cache budget.
@@ -122,6 +161,24 @@ shasum -a 256 -c Nest-Player-0.3.1-macOS-arm64.zip.sha256
   button presses do not create new Python processes or install dependencies.
 - **Automation:** use the CLI, JSON output, or the bundled
   [repo skill](.agents/skills/google-nest-speaker/SKILL.md).
+
+## Playlists, sleep timer, and alarms
+
+- **Switch playlists** with the playlist menu at the top of the sidebar, which
+  also holds **New Playlist…**, **Rename…**, and **Delete…** (the last playlist
+  cannot be deleted). Switching stops playback and keeps the old playlist's
+  position. Right-click tracks and choose **Add to Playlist** to copy them.
+- **Resume** happens when you press Play: the playlist continues from its saved
+  track and seeks to the saved second once the speaker reports the duration.
+- **Repeat** cycles off → all → one from the repeat button; each playlist keeps
+  its own setting.
+- **Sleep timer** lives in the moon button's menu. **End of current track**
+  stops after this track instead of advancing, regardless of repeat. Choose
+  **Turn Off Sleep Timer** to cancel; cancelling mid-fade restores the volume
+  immediately.
+- **Alarms** are managed from the toolbar alarm button; hover it to see the next
+  alarm. Pick a time, weekdays (none means every day), and a playlist. Nest
+  Player does not schedule the Mac to wake, so keep it awake and the app open.
 
 ## Paste YouTube or Bilibili links
 
@@ -179,25 +236,33 @@ and retry playback. No SMB password is entered or stored in Nest Player.
    Safari and enter the six-digit pairing code shown on the Mac.
 
 The controller supports play/pause/stop, previous/next, seeking, Cast volume,
-Mac audio, playlist selection, and **Add & Play** for YouTube/Bilibili links.
-Website login and mounting SMB shares are handled on the Mac.
+Mac audio, playlist switching, repeat mode, the sleep timer, and **Add & Play**
+for YouTube/Bilibili links. Website login and mounting SMB shares are handled on
+the Mac.
+
+**Pair once.** In Safari, use **Share → Add to Home Screen** to get a full-screen
+remote icon. The pairing is remembered by the phone and by the Mac across app
+restarts, so the shortcut stays connected. To revoke access — for example after
+lending your phone — click **Reset Pairing** in the Mac's Phone Remote sheet; it
+issues a new token and code and every phone must pair again.
 
 The server uses port 8989 when available and chooses another free port if needed;
-use the actual address shown in the app. QR links contain an app-session control
-token. Manual pairing is rate limited, and browser access lasts until disconnect
-or app restart. Keep the Mac awake and allow the app through the local firewall.
+use the actual address shown in the app. QR links contain a control token, which
+the Mac stores in Application Support with owner-only permissions. Manual
+pairing is rate limited. Keep the Mac awake and allow the app through the local
+firewall.
 This is a LAN HTTP controller, not a public Internet service. Cloudflare remote
 access remains a separate proposed extension.
 
 ## Media and device support
 
-| Input or target | Behavior |
-| --- | --- |
-| MP3, M4A, FLAC, Ogg/Opus, WAV | Direct serving for Cast-compatible codecs and containers |
-| Video containing AAC or MP3 audio | Extract the audio with FFmpeg stream copy when possible |
-| Other FFmpeg-readable audio/video | Convert the audio to MP3 |
-| MP4, MOV, M4V video | Local picture playback when supported by AVFoundation |
-| Google Nest Mini | Tested on a real device |
+| Input or target                                   | Behavior                                                               |
+| ------------------------------------------------- | ---------------------------------------------------------------------- |
+| MP3, M4A, FLAC, Ogg/Opus, WAV                     | Direct serving for Cast-compatible codecs and containers               |
+| Video containing AAC or MP3 audio                 | Extract the audio with FFmpeg stream copy when possible                |
+| Other FFmpeg-readable audio/video                 | Convert the audio to MP3                                               |
+| MP4, MOV, M4V video                               | Local picture playback when supported by AVFoundation                  |
+| Google Nest Mini                                  | Tested on a real device                                                |
 | Other Google Home / Cast audio devices and groups | Discovered through PyChromecast; compatibility depends on the receiver |
 
 Actual codec support depends on the receiver; see
@@ -312,6 +377,10 @@ optional future Cloudflare Worker + local-agent design.
   Video extraction or first-time conversion depends on file size; cached audio
   is reused on subsequent plays.
 - **Mac is silent:** this is the default. Enable **Mac audio** for dual output.
+- **Alarm didn't play:** the app must be open and the Mac awake at alarm time;
+  check that the alarm is switched on and that nothing else was already playing.
+- **Phone asks to pair again:** someone clicked **Reset Pairing**, or the
+  browser's site data was cleared; scan the QR code once more.
 - **No local picture:** try an AVFoundation-compatible format such as MP4/MOV.
 - **Cast and Mac differ slightly:** Cast is the playback clock; local playback
   is corrected when drift exceeds 750 ms. Separate rooms are the intended use.
