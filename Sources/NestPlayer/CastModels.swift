@@ -207,6 +207,31 @@ struct PlaylistLibrary: Codable, Sendable, Equatable {
     }
 }
 
+enum SleepTimerChoice: Hashable, Sendable {
+    case minutes(Int)
+    case endOfTrack
+
+    static let presets = [15, 30, 45, 60, 90]
+
+    var label: String {
+        switch self {
+        case .minutes(let minutes): "\(minutes) minutes"
+        case .endOfTrack: "End of current track"
+        }
+    }
+}
+
+/// Linear fade over the sleep timer's last seconds.
+enum SleepFade {
+    static let duration: Double = 30
+
+    /// Volume (0–100) to use with `remaining` seconds left, or nil before the fade starts.
+    static func volume(original: Double, remaining: Double) -> Double? {
+        guard remaining < duration else { return nil }
+        return (original * min(max(remaining, 0), duration) / duration).rounded()
+    }
+}
+
 /// Pure playlist edits, kept out of PlayerModel so they are testable without a Cast backend.
 enum PlaylistEditor {
     static func removing(_ ids: Set<Track.ID>, from playlist: [Track]) -> (playlist: [Track], nextSelection: Track.ID?) {

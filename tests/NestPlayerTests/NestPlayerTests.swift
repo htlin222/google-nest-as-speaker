@@ -206,3 +206,18 @@ private func track(_ name: String) -> Track { Track(url: URL(fileURLWithPath: "/
     #expect(tolerant.current.name == "Old")
     #expect(tolerant.current.tracks.isEmpty && tolerant.current.repeatMode == .off && tolerant.current.resumePosition == 0)
 }
+
+@Test func sleepFadeIsLinearOverTheLastThirtySeconds() {
+    #expect(SleepFade.volume(original: 60, remaining: 31) == nil)
+    #expect(SleepFade.volume(original: 60, remaining: 30) == nil)
+    #expect(SleepFade.volume(original: 60, remaining: 29) == 58)
+    #expect(SleepFade.volume(original: 60, remaining: 15) == 30)
+    #expect(SleepFade.volume(original: 60, remaining: 0) == 0)
+    #expect(SleepFade.volume(original: 60, remaining: -3) == 0)
+}
+
+@Test func sleepTimerChoicesDescribeThemselves() {
+    #expect(SleepTimerChoice.presets == [15, 30, 45, 60, 90])
+    #expect(SleepTimerChoice.minutes(30).label == "30 minutes")
+    #expect(SleepTimerChoice.endOfTrack.label == "End of current track")
+}

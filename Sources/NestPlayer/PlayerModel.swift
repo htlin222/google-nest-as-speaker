@@ -49,6 +49,9 @@ final class PlayerModel {
         }
     }
     var statusDetail = "Starting Cast service…"
+    private(set) var sleepTimer: SleepTimerChoice?
+    /// Seconds until the sleep timer stops playback; nil while unknown (e.g. end of track not playing).
+    private(set) var sleepRemaining: Double?
     var isDropTarget = false
     var isDiscovering = false
     var localPlayer: AVPlayer?
@@ -73,6 +76,10 @@ final class PlayerModel {
     /// Seconds to seek to once the given playback generation reports PLAYING.
     @ObservationIgnored private var pendingResume: (generation: Int, seconds: Double)?
     @ObservationIgnored private var lastResumeSave = Date.distantPast
+    @ObservationIgnored private var sleepDeadline: Date?
+    @ObservationIgnored private var sleepTask: Task<Void, Never>?
+    /// Speaker volume before the fade began; restored when the timer ends or is cancelled.
+    @ObservationIgnored private var fadeOriginalVolume: Double?
     #if APP_STORE
     @ObservationIgnored private let nativePreparer = NativeMediaPreparer()
     @ObservationIgnored private var nativeMediaServer: NativeMediaServer?
@@ -377,6 +384,69 @@ final class PlayerModel {
         savePlaylist()
     }
 
+    // MARK: Sleep timer
+
+    func setSleepTimer(_ choice: SleepTimerChoice?) {
+        restoreFadedVolume()
+        clearSleepTimer()
+        guard let choice else {
+            statusDetail = "Sleep timer off"
+            return
+        }
+        sleepTimer = choice
+        if case .minutes(let minutes) = choice { sleepDeadline = Date().addingTimeInterval(Double(minutes) * 60) }
+        statusDetail = "Sleep timer: \(choice.label)"
+        sleepTask = Task { [weak self] in
+            while !Task.isCancelled {
+                self?.sleepTick()
+                try? await Task.sleep(for: .seconds(1))
+            }
+        }
+        sleepTick()
+    }
+
+    private func sleepTick() {
+        guard let sleepTimer else { return }
+        switch sleepTimer {
+        case .minutes: sleepRemaining = sleepDeadline.map { max($0.timeIntervalSinceNow, 0) }
+        case .endOfTrack: sleepRemaining = hasSession && duration > 0 ? max(duration - currentTime, 0) : nil
+        }
+        guard let remaining = sleepRemaining else { return }
+        if case .minutes = sleepTimer, remaining <= 0 {
+            finishSleepTimer()
+            return
+        }
+        guard hasSession, phase == .playing,
+              let level = SleepFade.volume(original: fadeOriginalVolume ?? volume, remaining: remaining)
+        else { return }
+        if fadeOriginalVolume == nil { fadeOriginalVolume = volume }
+        if level != volume { applyVolume(level) }
+    }
+
+    /// Stops playback, then puts the speaker back at its pre-fade volume.
+    private func finishSleepTimer() {
+        let original = fadeOriginalVolume
+        fadeOriginalVolume = nil
+        clearSleepTimer()
+        if hasSession { stop() }
+        if let original { applyVolume(original) }
+        statusDetail = "Sleep timer ended · playback stopped"
+    }
+
+    private func restoreFadedVolume() {
+        guard let original = fadeOriginalVolume else { return }
+        fadeOriginalVolume = nil
+        applyVolume(original)
+    }
+
+    private func clearSleepTimer() {
+        sleepTask?.cancel()
+        sleepTask = nil
+        sleepTimer = nil
+        sleepDeadline = nil
+        sleepRemaining = nil
+    }
+
     // MARK: Playlists
 
     /// Switching stops playback; the position is kept so switching back resumes it.
@@ -531,7 +601,17 @@ final class PlayerModel {
         sendControl("seek", fields: ["seconds": .number(bounded)])
     }
 
+    /// User volume change. During a sleep fade it wins: the timer is cancelled and the new level kept.
     func setVolume(_ newValue: Double) {
+        if fadeOriginalVolume != nil {
+            fadeOriginalVolume = nil
+            clearSleepTimer()
+            statusDetail = "Sleep timer cancelled"
+        }
+        applyVolume(newValue)
+    }
+
+    private func applyVolume(_ newValue: Double) {
         volume = min(max(newValue, 0), 100)
         volumeTask?.cancel()
         let requested = Int(volume.rounded())
@@ -565,6 +645,7 @@ final class PlayerModel {
     func refreshStatus() {}
 
     func shutdown() {
+        sleepTask?.cancel()
         if let activeTrack { recordResume(activeTrack.id, at: currentTime) }
         savePlaylist()
         generation += 1
@@ -768,7 +849,7 @@ final class PlayerModel {
             statusDetail = "Finished \(finished?.title ?? "track")"
             if let finished {
                 recordResume(finished.id, at: 0, persist: true)
-                playNext(after: finished)
+                if sleepTimer == .endOfTrack { finishSleepTimer() } else { playNext(after: finished) }
             }
         case "failed":
             #if APP_STORE
