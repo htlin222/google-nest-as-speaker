@@ -135,3 +135,74 @@ private func track(_ name: String) -> Track { Track(url: URL(fileURLWithPath: "/
     #expect(PlaylistEditor.autoAdvanceID(after: tracks[1].id, in: tracks, mode: .all) == tracks[0].id)
     #expect(PlaylistEditor.autoAdvanceID(after: tracks[0].id, in: tracks, mode: .one) == tracks[0].id)
 }
+
+@Test func migratingLegacyPlaylistKeepsEveryTrackAndRepeatMode() {
+    let legacy = ["a", "b"].map(track)
+    let library = PlaylistLibrary.migrating(legacyTracks: legacy, repeatMode: .all)
+    #expect(library.playlists.count == 1)
+    #expect(library.current.name == PlaylistLibrary.defaultName)
+    #expect(library.current.tracks == legacy)
+    #expect(library.current.repeatMode == .all)
+}
+
+@Test func libraryCreatesUniqueNamesAndNeverDeletesTheLastPlaylist() {
+    var library = PlaylistLibrary(playlists: [])
+    #expect(library.playlists.count == 1)
+    let first = library.current.id
+    library.delete(first)
+    #expect(library.playlists.count == 1)
+
+    let poems = library.create(named: " 唐詩 ")
+    #expect(library.current.id == poems && library.current.name == "唐詩")
+    library.create(named: "唐詩")
+    #expect(library.current.name == "唐詩 2")
+    library.rename(first, to: "唐詩")
+    #expect(library.playlists.first { $0.id == first }?.name == "唐詩 3")
+    library.rename(poems, to: "唐詩")
+    #expect(library.playlists.first { $0.id == poems }?.name == "唐詩")
+}
+
+@Test func deletingCurrentPlaylistSelectsItsNeighbour() {
+    var library = PlaylistLibrary(playlists: ["A", "B", "C"].map { Playlist(name: $0) })
+    let ids = library.playlists.map(\.id)
+    library.select(ids[1])
+    library.delete(ids[1])
+    #expect(library.current.id == ids[2])
+    library.delete(ids[2])
+    #expect(library.current.id == ids[0])
+}
+
+@Test func copyingTracksUsesFreshIDsAndSkipsDuplicates() {
+    var source = track("a")
+    source.customTitle = "Mine"
+    var library = PlaylistLibrary(playlists: [Playlist(name: "A", tracks: [source]), Playlist(name: "B")])
+    let target = library.playlists[1].id
+    #expect(library.copy([source], to: target) == 1)
+    #expect(library.copy([source], to: target) == 0)
+    let copied = library.playlists[1].tracks
+    #expect(copied.count == 1 && copied[0].id != source.id && copied[0].title == "Mine")
+}
+
+@Test func resumeOnlyAppliesToTheRememberedTrackPastFiveSeconds() {
+    let tracks = ["a", "b"].map(track)
+    var playlist = Playlist(name: "P", tracks: tracks)
+    playlist.resumeTrackID = tracks[0].id
+    playlist.resumePosition = 83
+    #expect(playlist.resumeStart(for: tracks[0].id) == 83)
+    #expect(playlist.resumeStart(for: tracks[1].id) == 0)
+    playlist.resumePosition = 4
+    #expect(playlist.resumeStart(for: tracks[0].id) == 0)
+}
+
+@Test func libraryRoundTripsAndToleratesMissingFieldsAndStaleSelection() throws {
+    var library = PlaylistLibrary(playlists: [Playlist(name: "A", tracks: [track("a")], repeatMode: .one)])
+    library.current.resumeTrackID = library.current.tracks[0].id
+    library.current.resumePosition = 42
+    let decoded = try JSONDecoder().decode(PlaylistLibrary.self, from: JSONEncoder().encode(library))
+    #expect(decoded == library)
+
+    let sparse = #"{"playlists":[{"id":"00000000-0000-4000-8000-000000000001","name":"Old"}],"currentID":"00000000-0000-4000-8000-0000000000FF"}"#
+    let tolerant = try JSONDecoder().decode(PlaylistLibrary.self, from: Data(sparse.utf8))
+    #expect(tolerant.current.name == "Old")
+    #expect(tolerant.current.tracks.isEmpty && tolerant.current.repeatMode == .off && tolerant.current.resumePosition == 0)
+}

@@ -15,6 +15,9 @@ struct ContentView: View {
     @State private var renamingTrack: Track?
     @State private var renameText = ""
     @State private var confirmClear = false
+    @State private var playlistNaming: PlaylistNaming?
+    @State private var playlistNameText = ""
+    @State private var confirmDeletePlaylist = false
 
     var body: some View {
         @Bindable var model = model
@@ -43,6 +46,7 @@ struct ContentView: View {
                     }
                 }.padding(12)
                 Divider()
+                playlistHeader
                 List(selection: $model.selectedTrackIDs) {
                     ForEach(model.playlist) { track in
                         TrackRow(track: track, isPlaying: model.activeTrack?.id == track.id && model.phase.isActive)
@@ -131,6 +135,26 @@ struct ContentView: View {
             }
         }) { SMBConnectionSheet { chooseFolderAfterSMB = true } }
         .sheet(isPresented: $showRemote) { PhoneRemoteSheet() }
+        .alert(playlistNaming?.title ?? "", isPresented: Binding(get: { playlistNaming != nil }, set: { if !$0 { playlistNaming = nil } })) {
+            TextField("Playlist name", text: $playlistNameText)
+            Button(playlistNaming == .create ? "Create" : "Rename") {
+                switch playlistNaming {
+                case .create: model.createPlaylist(named: playlistNameText)
+                case .rename(let id): model.renamePlaylist(id, to: playlistNameText)
+                case nil: break
+                }
+                playlistNaming = nil
+            }
+            Button("Cancel", role: .cancel) { playlistNaming = nil }
+        }
+        .confirmationDialog(
+            "Delete playlist “\(model.currentPlaylist.name)” and its \(model.playlist.count) tracks?",
+            isPresented: $confirmDeletePlaylist
+        ) {
+            Button("Delete Playlist", role: .destructive) { model.deletePlaylist(model.currentPlaylist.id) }
+        } message: {
+            Text("The audio files themselves are not deleted.")
+        }
         .alert("Rename Track", isPresented: Binding(get: { renamingTrack != nil }, set: { if !$0 { renamingTrack = nil } })) {
             TextField("Name", text: $renameText)
             Button("Rename") {
@@ -387,7 +411,60 @@ struct ContentView: View {
     }
 }
 
+private enum PlaylistNaming: Equatable {
+    case create
+    case rename(Playlist.ID)
+
+    var title: String { self == .create ? "New Playlist" : "Rename Playlist" }
+}
+
 private extension ContentView {
+    var playlistHeader: some View {
+        HStack(spacing: 6) {
+            Menu {
+                ForEach(model.library.playlists) { playlist in
+                    Button { model.selectPlaylist(playlist.id) } label: {
+                        if playlist.id == model.currentPlaylist.id {
+                            Label("\(playlist.name) (\(playlist.tracks.count))", systemImage: "checkmark")
+                        } else {
+                            Text("\(playlist.name) (\(playlist.tracks.count))")
+                        }
+                    }
+                }
+                Divider()
+                Button("New Playlist…") {
+                    playlistNameText = ""
+                    playlistNaming = .create
+                }
+                Button("Rename “\(model.currentPlaylist.name)”…") {
+                    playlistNameText = model.currentPlaylist.name
+                    playlistNaming = .rename(model.currentPlaylist.id)
+                }
+                Button("Delete “\(model.currentPlaylist.name)”…", role: .destructive) { confirmDeletePlaylist = true }
+                    .disabled(model.library.playlists.count < 2)
+            } label: {
+                Label(model.currentPlaylist.name, systemImage: "music.note.list")
+                    .font(.headline)
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+            .help("Switch, create, rename, or delete playlists")
+
+            Spacer()
+
+            Button {
+                playlistNameText = ""
+                playlistNaming = .create
+            } label: {
+                Image(systemName: "plus.rectangle.on.rectangle")
+            }
+            .buttonStyle(.borderless)
+            .help("New playlist")
+        }
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+    }
+
     @ViewBuilder
     func trackMenu(for ids: Set<Track.ID>) -> some View {
         let tracks = model.playlist.filter { ids.contains($0.id) }
@@ -401,6 +478,14 @@ private extension ContentView {
                 Button("Sign in to \(site)…") { model.showWebsiteLogin(for: track) }
             }
             Divider()
+        }
+        let others = model.library.playlists.filter { $0.id != model.currentPlaylist.id }
+        if !tracks.isEmpty, !others.isEmpty {
+            Menu("Add to Playlist") {
+                ForEach(others) { playlist in
+                    Button(playlist.name) { model.copyTracks(ids, to: playlist.id) }
+                }
+            }
         }
         if !tracks.isEmpty {
             Button(tracks.count == 1 ? "Remove" : "Remove \(tracks.count) Tracks", role: .destructive) {
