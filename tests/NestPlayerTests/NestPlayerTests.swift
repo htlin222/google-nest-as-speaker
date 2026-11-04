@@ -221,3 +221,42 @@ private func track(_ name: String) -> Track { Track(url: URL(fileURLWithPath: "/
     #expect(SleepTimerChoice.minutes(30).label == "30 minutes")
     #expect(SleepTimerChoice.endOfTrack.label == "End of current track")
 }
+
+private let taipei: Calendar = {
+    var calendar = Calendar(identifier: .gregorian)
+    calendar.timeZone = TimeZone(identifier: "Asia/Taipei")!
+    return calendar
+}()
+
+private func at(_ day: Int, _ hour: Int, _ minute: Int, _ second: Int = 0) -> Date {
+    taipei.date(from: DateComponents(year: 2026, month: 11, day: day, hour: hour, minute: minute, second: second))!
+}
+
+@Test func alarmFiresOnlyWithinTwoMinutesOfItsTimeAndOnce() {
+    let alarm = Alarm(hour: 7, minute: 0, playlistID: UUID())   // daily
+    #expect(AlarmSchedule.dueFire(alarm, now: at(4, 7, 0, 30), lastFired: nil, calendar: taipei) == at(4, 7, 0))
+    #expect(AlarmSchedule.dueFire(alarm, now: at(4, 7, 1, 59), lastFired: nil, calendar: taipei) == at(4, 7, 0))
+    #expect(AlarmSchedule.dueFire(alarm, now: at(4, 7, 2, 0), lastFired: nil, calendar: taipei) == nil)
+    #expect(AlarmSchedule.dueFire(alarm, now: at(4, 6, 59, 59), lastFired: nil, calendar: taipei) == nil)
+    #expect(AlarmSchedule.dueFire(alarm, now: at(4, 7, 0, 45), lastFired: at(4, 7, 0), calendar: taipei) == nil)
+    #expect(AlarmSchedule.dueFire(alarm, now: at(5, 7, 0, 10), lastFired: at(4, 7, 0), calendar: taipei) == at(5, 7, 0))
+}
+
+@Test func alarmRespectsWeekdaysEnabledAndMidnight() {
+    let playlist = UUID()
+    // 2026-11-04 is a Wednesday (weekday 4).
+    #expect(AlarmSchedule.dueFire(Alarm(hour: 7, minute: 0, weekdays: [2], playlistID: playlist), now: at(4, 7, 0, 5), lastFired: nil, calendar: taipei) == nil)
+    #expect(AlarmSchedule.dueFire(Alarm(hour: 7, minute: 0, weekdays: [4], playlistID: playlist), now: at(4, 7, 0, 5), lastFired: nil, calendar: taipei) == at(4, 7, 0))
+    #expect(AlarmSchedule.dueFire(Alarm(isEnabled: false, hour: 7, minute: 0, playlistID: playlist), now: at(4, 7, 0, 5), lastFired: nil, calendar: taipei) == nil)
+    // 23:59 on Wednesday, checked 00:00:30 Thursday: Wednesday's occurrence is the one due.
+    #expect(AlarmSchedule.dueFire(Alarm(hour: 23, minute: 59, weekdays: [4], playlistID: playlist), now: at(5, 0, 0, 30), lastFired: nil, calendar: taipei) == at(4, 23, 59))
+    #expect(AlarmSchedule.dueFire(Alarm(hour: 23, minute: 59, weekdays: [5], playlistID: playlist), now: at(5, 0, 0, 30), lastFired: nil, calendar: taipei) == nil)
+}
+
+@Test func nextAlarmSkipsToTheNextChosenWeekday() {
+    let playlist = UUID()
+    #expect(AlarmSchedule.nextFire(Alarm(hour: 7, minute: 0, weekdays: [2], playlistID: playlist), after: at(4, 8, 0), calendar: taipei) == at(9, 7, 0))
+    #expect(AlarmSchedule.nextFire(Alarm(hour: 7, minute: 0, playlistID: playlist), after: at(4, 6, 0), calendar: taipei) == at(4, 7, 0))
+    #expect(AlarmSchedule.nextFire(Alarm(hour: 7, minute: 0, playlistID: playlist), after: at(4, 7, 0), calendar: taipei) == at(5, 7, 0))
+    #expect(AlarmSchedule.nextFire(Alarm(isEnabled: false, hour: 7, minute: 0, playlistID: playlist), after: at(4, 6, 0), calendar: taipei) == nil)
+}
