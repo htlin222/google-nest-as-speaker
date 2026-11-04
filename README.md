@@ -54,7 +54,7 @@ The prebuilt `.app` requires **macOS 14 Sonoma or later on Apple Silicon
 (M1 or newer)**. An Intel binary is not included in this release.
 
 1. Open [Releases](https://github.com/htlin222/google-nest-as-speaker/releases/latest)
-   and download `Nest-Player-0.3.0-macOS-arm64.zip`.
+   and download `Nest-Player-0.3.1-macOS-arm64.zip`.
 2. Extract the ZIP and move **Nest Player.app** to Applications.
 3. Open the app and allow local-network access if macOS requests it.
 4. Select your Cast speaker, add or drop a media file, then press Play.
@@ -83,7 +83,7 @@ blocks the app and you trust this download, attempt to open it, then use
 Each release includes a SHA-256 file. To verify the download before extracting:
 
 ```bash
-shasum -a 256 -c Nest-Player-0.3.0-macOS-arm64.zip.sha256
+shasum -a 256 -c Nest-Player-0.3.1-macOS-arm64.zip.sha256
 ```
 
 ## Features
@@ -352,7 +352,7 @@ See [CITATION.cff](CITATION.cff), [citation.bib](citation.bib), and the optional
   title = {{Nest Player}: macOS audio player for Google Nest and Chromecast speakers},
   year = {2026},
   url = {https://github.com/htlin222/google-nest-as-speaker},
-  version = {0.3.0}
+  version = {0.3.1}
 }
 ```
 
