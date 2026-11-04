@@ -38,7 +38,7 @@ Nest Player 是使用 SwiftUI 製作的原生 macOS 播放器，支援播放清�
 
 預先編譯的 `.app` 適用於 **Apple Silicon（M1 或更新）與 macOS 14 Sonoma 以上版本**。目前 Release 未提供 Intel 執行檔。
 
-1. 前往 [Releases](https://github.com/htlin222/google-nest-as-speaker/releases/latest)，下載 `Nest-Player-0.2.1-macOS-arm64.zip`。
+1. 前往 [Releases](https://github.com/htlin222/google-nest-as-speaker/releases/latest)，下載 `Nest-Player-0.3.0-macOS-arm64.zip`。
 2. 解壓縮，將 **Nest Player.app** 移到「應用程式」。
 3. 開啟程式；若 macOS 詢問，允許區域網路存取。
 4. 選擇 Cast 喇叭，加入或拖入媒體檔，按下播放。
@@ -60,7 +60,7 @@ brew install ffmpeg
 每個 Release 均附 SHA-256 校驗檔，可在解壓縮前驗證：
 
 ```bash
-shasum -a 256 -c Nest-Player-0.2.1-macOS-arm64.zip.sha256
+shasum -a 256 -c Nest-Player-0.3.0-macOS-arm64.zip.sha256
 ```
 
 ## 功能
@@ -68,11 +68,15 @@ shasum -a 256 -c Nest-Player-0.2.1-macOS-arm64.zip.sha256
 - **YouTube／Bilibili**：貼上影片網址或分享文字；支援短網址，Cast 播放音訊，Mac 可預覽最高 720p 的 H.264 影片串流。
 - **瀏覽器登入授權**：需要帳號時，在原網站與你選擇的瀏覽器完成登入，再明確授權程式使用該工作階段。
 - **本機資料夾與 SMB**：從資料夾或 Finder 掛載的網路共享匯入媒體，背景掃描、自然排序，離線項目仍保留。
-- **iPhone 遙控器**：掃 QR Code，或在瀏覽器輸入 Mac 的配對碼；控制播放、進度、音量、播放清單與網站連結。
+- **iPhone 遙控器**：掃 QR Code，或在瀏覽器輸入 Mac 的配對碼；控制播放、進度、音量、切換清單、重複、睡眠定時與網站連結。加入主畫面後只需配對一次；在 Mac 按 **Reset Pairing** 可解除所有手機配對。
 - **Cast 本機音訊**：將檔案播放到 Google Nest、Google Home 與 Google Cast 音訊群組，本機檔案不需上傳雲端。
 - **本機影片＋Cast 聲音**：Mac 顯示支援的影片，聲音由選定喇叭播放。
 - **雙音訊輸出**：Mac 預設靜音；開啟 **Mac audio** 後，Mac 與 Cast 可同時輸出。
-- **持久化播放清單**：拖放、加入、移除、排序、上一首／下一首，以及自然播畢後自動接續。
+- **多份播放清單**：新增、改名、切換、刪除具名清單，可把曲目複製到其他清單；每份清單記住播到哪一首、第幾秒，按播放就接著聽。
+- **清單編輯**：拖放、多選刪除（Delete 鍵）、曲目改名、依名稱排序（A→Z／Z→A），清空前會確認。
+- **重複播放**：關閉、整份清單、單曲重複，每份清單各自設定。
+- **睡眠定時**：15–90 分鐘後或本首結束時停止，最後 30 秒淡出，停止後還原喇叭音量。
+- **鬧鐘**：在指定時間與星期自動播放某份清單（App 需開著、Mac 需醒著；不會更改音量）。
 - **完整控制**：暫停、繼續、停止、跳轉進度與 Cast 音量。
 - **快速媒體處理**：相容格式直接播放；可直接複製的音軌不重新編碼，必要時才轉檔。
 - **轉換快取**：重用處理過的音訊，採用 2 GB 的 LRU 快取預算。
@@ -245,7 +249,7 @@ uv run python scripts/smoke_bundle.py \
   title = {{Nest Player}: macOS audio player for Google Nest and Chromecast speakers},
   year = {2026},
   url = {https://github.com/htlin222/google-nest-as-speaker},
-  version = {0.2.1}
+  version = {0.3.0}
 }
 ```
 
