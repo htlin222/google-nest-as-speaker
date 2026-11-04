@@ -54,7 +54,7 @@ The prebuilt `.app` requires **macOS 14 Sonoma or later on Apple Silicon
 (M1 or newer)**. An Intel binary is not included in this release.
 
 1. Open [Releases](https://github.com/htlin222/google-nest-as-speaker/releases/latest)
-   and download `Nest-Player-0.2.1-macOS-arm64.zip`.
+   and download `Nest-Player-0.3.0-macOS-arm64.zip`.
 2. Extract the ZIP and move **Nest Player.app** to Applications.
 3. Open the app and allow local-network access if macOS requests it.
 4. Select your Cast speaker, add or drop a media file, then press Play.
@@ -83,7 +83,7 @@ blocks the app and you trust this download, attempt to open it, then use
 Each release includes a SHA-256 file. To verify the download before extracting:
 
 ```bash
-shasum -a 256 -c Nest-Player-0.2.1-macOS-arm64.zip.sha256
+shasum -a 256 -c Nest-Player-0.3.0-macOS-arm64.zip.sha256
 ```
 
 ## Features
@@ -95,15 +95,25 @@ shasum -a 256 -c Nest-Player-0.2.1-macOS-arm64.zip.sha256
 - **Folders and SMB:** import media recursively from local folders or shares
   mounted by Finder, with background scanning and retained offline entries.
 - **iPhone remote:** scan a QR code or enter the Mac's pairing code in a local
-  browser controller, with transport, seeking, volume, playlist, and link input.
+  browser controller, with transport, seeking, volume, playlist switching,
+  repeat, sleep timer, and link input. Add it to the Home Screen and pair once;
+  **Reset Pairing** on the Mac unpairs every phone.
 - **Cast local audio:** stream files to Google Nest, Google Home, and Google
   Cast audio groups without uploading them to a cloud service.
 - **Local video + Cast sound:** watch supported videos on the Mac while their
   audio plays through the selected speaker.
 - **Optional dual audio:** Mac audio starts muted; turn it on when both rooms
   should hear the media.
-- **Persistent playlist:** drag and drop, add, remove, reorder, previous/next,
-  and automatic advancement after natural completion.
+- **Multiple playlists:** create, rename, switch, and delete named playlists;
+  copy tracks between them. Each remembers its track and position and resumes
+  there.
+- **Playlist editing:** drag and drop, multi-select removal (Delete key),
+  rename tracks, sort by name (A→Z / Z→A), and confirm before clearing.
+- **Repeat:** off, whole playlist, or current track — per playlist.
+- **Sleep timer:** stop after 15–90 minutes or at the end of the track, fading
+  out over the last 30 seconds and then restoring the speaker volume.
+- **Alarms:** start a playlist at a set time on chosen weekdays (the app must be
+  open and the Mac awake; volume is never changed).
 - **Playback controls:** pause, resume, stop, seek, and adjust Cast volume.
 - **Fast common-format path:** serve supported audio directly, remux compatible
   video audio tracks, and transcode only when necessary.
@@ -342,7 +352,7 @@ See [CITATION.cff](CITATION.cff), [citation.bib](citation.bib), and the optional
   title = {{Nest Player}: macOS audio player for Google Nest and Chromecast speakers},
   year = {2026},
   url = {https://github.com/htlin222/google-nest-as-speaker},
-  version = {0.2.1}
+  version = {0.3.0}
 }
 ```
 
