@@ -11,11 +11,20 @@ final class PlayerModel {
     private static let playlistRecordsKey = "playlistRecordsV2"
 
     var playlist: [Track] = []
+    /// The single "current" track used by play/next/previous.
     var selectedTrackID: Track.ID? {
         didSet {
+            if let selectedTrackID, selectedTrackIDs != [selectedTrackID] { selectedTrackIDs = [selectedTrackID] }
+            if selectedTrackID == nil, !selectedTrackIDs.isEmpty { selectedTrackIDs = [] }
             if selectedTrackID != oldValue, !hasSession {
                 configureLocalPlayer(for: selectedTrack)
             }
+        }
+    }
+    /// List selection; may hold several tracks for bulk removal.
+    var selectedTrackIDs: Set<Track.ID> = [] {
+        didSet {
+            if selectedTrackIDs.count == 1, let id = selectedTrackIDs.first, id != selectedTrackID { selectedTrackID = id }
         }
     }
     var devices: [CastDevice] = []
@@ -25,6 +34,9 @@ final class PlayerModel {
     var duration = 0.0
     var volume = 50.0
     var localAudioEnabled = false
+    var repeatMode = RepeatMode(rawValue: UserDefaults.standard.string(forKey: "repeatMode") ?? "") ?? .off {
+        didSet { UserDefaults.standard.set(repeatMode.rawValue, forKey: "repeatMode") }
+    }
     var statusDetail = "Starting Cast service…"
     var isDropTarget = false
     var isDiscovering = false
@@ -160,10 +172,8 @@ final class PlayerModel {
     }
 
     var canGoNext: Bool {
-        guard let selectedTrackID,
-              let index = playlist.firstIndex(where: { $0.id == selectedTrackID })
-        else { return false }
-        return playlist.indices.contains(index + 1)
+        guard let selectedTrackID else { return false }
+        return PlaylistEditor.nextID(after: selectedTrackID, in: playlist, wrapping: repeatMode != .off) != nil
     }
 
     func refreshDevices() {
@@ -314,12 +324,31 @@ final class PlayerModel {
         }
     }
 
-    func removeSelectedTrack() {
-        guard let selectedTrackID,
-              let index = playlist.firstIndex(where: { $0.id == selectedTrackID })
-        else { return }
-        playlist.remove(at: index)
-        self.selectedTrackID = playlist.indices.contains(index) ? playlist[index].id : playlist.last?.id
+    func removeSelectedTracks() {
+        var ids = selectedTrackIDs
+        if ids.isEmpty, let selectedTrackID { ids = [selectedTrackID] }
+        removeTracks(ids)
+    }
+
+    func removeTracks(_ ids: Set<Track.ID>) {
+        guard !ids.isEmpty else { return }
+        let before = playlist.count
+        let result = PlaylistEditor.removing(ids, from: playlist)
+        playlist = result.playlist
+        selectedTrackID = result.nextSelection
+        let removed = before - playlist.count
+        if removed > 0 { statusDetail = "Removed \(removed) track\(removed == 1 ? "" : "s")" }
+        savePlaylist()
+    }
+
+    func renameTrack(_ id: Track.ID, to name: String) {
+        playlist = PlaylistEditor.renaming(id, to: name, in: playlist)
+        if let activeTrack, activeTrack.id == id { self.activeTrack = playlist.first { $0.id == id } }
+        savePlaylist()
+    }
+
+    func sortPlaylist(ascending: Bool) {
+        playlist = PlaylistEditor.sortedByName(playlist, ascending: ascending)
         savePlaylist()
     }
 
@@ -369,10 +398,9 @@ final class PlayerModel {
 
     func nextTrack() {
         guard let selectedTrackID,
-              let index = playlist.firstIndex(where: { $0.id == selectedTrackID }),
-              playlist.indices.contains(index + 1)
+              let nextID = PlaylistEditor.nextID(after: selectedTrackID, in: playlist, wrapping: repeatMode != .off),
+              let track = playlist.first(where: { $0.id == nextID })
         else { return }
-        let track = playlist[index + 1]
         self.selectedTrackID = track.id
         requestPlayback(of: track)
     }
@@ -586,6 +614,7 @@ final class PlayerModel {
         case "onlineReady":
             if let title = event.title, var track = activeTrack {
                 track.resolvedTitle = title
+                track.customTitle = playlist.first(where: { $0.id == track.id })?.customTitle
                 activeTrack = track
                 if let index = playlist.firstIndex(where: { $0.id == track.id }) { playlist[index] = track }
                 savePlaylist()
@@ -666,10 +695,9 @@ final class PlayerModel {
     }
 
     private func playNext(after track: Track) {
-        guard let index = playlist.firstIndex(where: { $0.id == track.id }),
-              playlist.indices.contains(index + 1)
+        guard let nextID = PlaylistEditor.autoAdvanceID(after: track.id, in: playlist, mode: repeatMode),
+              let next = playlist.first(where: { $0.id == nextID })
         else { return }
-        let next = playlist[index + 1]
         selectedTrackID = next.id
         requestPlayback(of: next)
     }

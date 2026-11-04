@@ -39,6 +39,8 @@ struct Track: Identifiable, Hashable, Sendable, Codable {
     let id: UUID
     let url: URL
     var resolvedTitle: String?
+    /// User-entered name; wins over the title resolved from the website.
+    var customTitle: String?
 
     init(id: UUID = UUID(), url: URL) {
         self.id = id
@@ -46,7 +48,7 @@ struct Track: Identifiable, Hashable, Sendable, Codable {
     }
 
     var title: String {
-        resolvedTitle ?? (url.isFileURL ? url.deletingPathExtension().lastPathComponent : "\(MediaLinks.site(for: url) ?? "Online video") · \(url.lastPathComponent)")
+        customTitle ?? resolvedTitle ?? (url.isFileURL ? url.deletingPathExtension().lastPathComponent : "\(MediaLinks.site(for: url) ?? "Online video") · \(url.lastPathComponent)")
     }
 
     var subtitle: String {
@@ -63,6 +65,70 @@ struct Track: Identifiable, Hashable, Sendable, Codable {
     }
 
     var source: String { url.isFileURL ? url.path : url.absoluteString }
+}
+
+enum RepeatMode: String, Sendable {
+    case off, all, one
+
+    var next: RepeatMode {
+        switch self {
+        case .off: .all
+        case .all: .one
+        case .one: .off
+        }
+    }
+
+    var symbol: String { self == .one ? "repeat.1" : "repeat" }
+
+    var label: String {
+        switch self {
+        case .off: "Repeat: Off"
+        case .all: "Repeat: Whole playlist"
+        case .one: "Repeat: Current track"
+        }
+    }
+}
+
+/// Pure playlist edits, kept out of PlayerModel so they are testable without a Cast backend.
+enum PlaylistEditor {
+    static func removing(_ ids: Set<Track.ID>, from playlist: [Track]) -> (playlist: [Track], nextSelection: Track.ID?) {
+        let firstRemoved = playlist.firstIndex { ids.contains($0.id) }
+        let remaining = playlist.filter { !ids.contains($0.id) }
+        guard let firstRemoved else { return (remaining, nil) }
+        let next = remaining.indices.contains(firstRemoved) ? remaining[firstRemoved].id : remaining.last?.id
+        return (remaining, next)
+    }
+
+    /// Finder-style name order: case-insensitive, numbers compared numerically ("2" < "10").
+    static func sortedByName(_ playlist: [Track], ascending: Bool = true) -> [Track] {
+        playlist.sorted { lhs, rhs in
+            let order = lhs.title.localizedStandardCompare(rhs.title)
+            return ascending ? order == .orderedAscending : order == .orderedDescending
+        }
+    }
+
+    /// The track after `id`; with `wrapping`, the last track is followed by the first.
+    static func nextID(after id: Track.ID, in playlist: [Track], wrapping: Bool) -> Track.ID? {
+        guard let index = playlist.firstIndex(where: { $0.id == id }) else { return nil }
+        if playlist.indices.contains(index + 1) { return playlist[index + 1].id }
+        return wrapping ? playlist.first?.id : nil
+    }
+
+    /// What plays when `id` finishes on its own.
+    static func autoAdvanceID(after id: Track.ID, in playlist: [Track], mode: RepeatMode) -> Track.ID? {
+        if mode == .one { return playlist.contains { $0.id == id } ? id : nil }
+        return nextID(after: id, in: playlist, wrapping: mode == .all)
+    }
+
+    static func renaming(_ id: Track.ID, to name: String, in playlist: [Track]) -> [Track] {
+        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        return playlist.map { track in
+            guard track.id == id else { return track }
+            var renamed = track
+            renamed.customTitle = trimmed.isEmpty ? nil : trimmed
+            return renamed
+        }
+    }
 }
 
 enum PlayerPhase: Equatable, Sendable {

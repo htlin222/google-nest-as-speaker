@@ -12,6 +12,9 @@ struct ContentView: View {
     @State private var linkText = ""
     @State private var isSeeking = false
     @State private var scrubPosition = 0.0
+    @State private var renamingTrack: Track?
+    @State private var renameText = ""
+    @State private var confirmClear = false
 
     var body: some View {
         @Bindable var model = model
@@ -40,20 +43,21 @@ struct ContentView: View {
                     }
                 }.padding(12)
                 Divider()
-                List(selection: $model.selectedTrackID) {
+                List(selection: $model.selectedTrackIDs) {
                     ForEach(model.playlist) { track in
                         TrackRow(track: track, isPlaying: model.activeTrack?.id == track.id && model.phase.isActive)
                             .tag(track.id)
-                            .contentShape(Rectangle())
-                            .onTapGesture(count: 2) { model.play(track: track) }
-                            .contextMenu {
-                                if MediaLinks.site(for: track.url) != nil {
-                                    Button("Sign in to \(MediaLinks.site(for: track.url) ?? "website")…") { model.showWebsiteLogin(for: track) }
-                                }
-                            }
                     }
                     .onMove(perform: model.moveTracks)
                 }
+                .contextMenu(forSelectionType: Track.ID.self) { ids in
+                    trackMenu(for: ids)
+                } primaryAction: { ids in
+                    if ids.count == 1, let id = ids.first, let track = model.playlist.first(where: { $0.id == id }) {
+                        model.play(track: track)
+                    }
+                }
+                .onDeleteCommand { model.removeSelectedTracks() }
                 .overlay {
                     if model.playlist.isEmpty {
                         ContentUnavailableView(
@@ -75,16 +79,28 @@ struct ContentView: View {
                     }
                     .help("Add files, a folder, or an SMB share")
 
-                    Button { model.removeSelectedTrack() } label: {
+                    Button { model.removeSelectedTracks() } label: {
                         Image(systemName: "minus")
                     }
-                    .disabled(model.selectedTrackID == nil)
-                    .help("Remove selected track")
+                    .disabled(model.selectedTrackIDs.isEmpty)
+                    .help("Remove selected tracks (Delete)")
+
+                    Menu {
+                        Button("Name (A → Z)") { model.sortPlaylist(ascending: true) }
+                        Button("Name (Z → A)") { model.sortPlaylist(ascending: false) }
+                    } label: {
+                        Label("Sort", systemImage: "arrow.up.arrow.down")
+                    }
+                    .disabled(model.playlist.count < 2)
+                    .help("Sort playlist by name")
 
                     Spacer()
 
-                    Button("Clear") { model.clearPlaylist() }
+                    Button("Clear") { confirmClear = true }
                         .disabled(model.playlist.isEmpty)
+                        .confirmationDialog("Remove all \(model.playlist.count) tracks?", isPresented: $confirmClear) {
+                            Button("Clear Playlist", role: .destructive) { model.clearPlaylist() }
+                        }
                 }
                 .buttonStyle(.borderless)
                 .padding(10)
@@ -115,6 +131,16 @@ struct ContentView: View {
             }
         }) { SMBConnectionSheet { chooseFolderAfterSMB = true } }
         .sheet(isPresented: $showRemote) { PhoneRemoteSheet() }
+        .alert("Rename Track", isPresented: Binding(get: { renamingTrack != nil }, set: { if !$0 { renamingTrack = nil } })) {
+            TextField("Name", text: $renameText)
+            Button("Rename") {
+                if let track = renamingTrack { model.renameTrack(track.id, to: renameText) }
+                renamingTrack = nil
+            }
+            Button("Cancel", role: .cancel) { renamingTrack = nil }
+        } message: {
+            Text("Leave empty to restore the original name.")
+        }
         .onPasteCommand(of: [.plainText, .url]) { _ in pasteLink() }
         .dropDestination(for: URL.self) { urls, _ in
             for url in urls {
@@ -153,6 +179,11 @@ struct ContentView: View {
                 Text(model.displayedTrack?.title ?? "Nest Player")
                     .font(.system(size: 26, weight: .semibold, design: .rounded))
                     .lineLimit(1)
+                    .contextMenu {
+                        if let track = model.displayedTrack, model.playlist.contains(where: { $0.id == track.id }) {
+                            trackMenu(for: [track.id])
+                        }
+                    }
                 Text(model.statusDetail)
                     .font(.callout)
                     .foregroundStyle(model.phase.isFailure ? Color.red : Color.secondary)
@@ -263,6 +294,21 @@ struct ContentView: View {
             .font(.title2)
             .disabled(!model.canGoNext)
             .help("Next track")
+
+            Button { model.repeatMode = model.repeatMode.next } label: {
+                Image(systemName: model.repeatMode.symbol)
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 34, height: 34)
+                    .foregroundStyle(model.repeatMode != .off ? Color.white : Color.primary)
+                    .background(
+                        model.repeatMode != .off ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary),
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
+            }
+            .buttonStyle(.borderless)
+            .font(.title2)
+            .help("\(model.repeatMode.label) — click to change")
+            .accessibilityLabel(model.repeatMode.label)
         }
     }
 
@@ -338,6 +384,29 @@ struct ContentView: View {
             return
         }
         if model.addLinks(from: text) { linkText = "" }
+    }
+}
+
+private extension ContentView {
+    @ViewBuilder
+    func trackMenu(for ids: Set<Track.ID>) -> some View {
+        let tracks = model.playlist.filter { ids.contains($0.id) }
+        if tracks.count == 1, let track = tracks.first {
+            Button("Play") { model.play(track: track) }
+            Button("Rename…") {
+                renameText = track.title
+                renamingTrack = track
+            }
+            if let site = MediaLinks.site(for: track.url) {
+                Button("Sign in to \(site)…") { model.showWebsiteLogin(for: track) }
+            }
+            Divider()
+        }
+        if !tracks.isEmpty {
+            Button(tracks.count == 1 ? "Remove" : "Remove \(tracks.count) Tracks", role: .destructive) {
+                model.removeTracks(ids)
+            }
+        }
     }
 }
 

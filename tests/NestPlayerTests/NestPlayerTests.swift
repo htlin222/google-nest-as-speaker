@@ -83,3 +83,55 @@ import Testing
         #expect(kill(pid, 0) != 0)
     }
 }
+
+private func track(_ name: String) -> Track { Track(url: URL(fileURLWithPath: "/tmp/\(name).mp3")) }
+
+@Test func sortsPlaylistByNameLikeFinder() {
+    let tracks = ["b song", "Track 10", "A song", "Track 2"].map(track)
+    #expect(PlaylistEditor.sortedByName(tracks).map(\.title) == ["A song", "b song", "Track 2", "Track 10"])
+    #expect(PlaylistEditor.sortedByName(tracks, ascending: false).map(\.title) == ["Track 10", "Track 2", "b song", "A song"])
+}
+
+@Test func removesSeveralTracksAndSelectsTheFollowingOne() {
+    let tracks = ["a", "b", "c", "d"].map(track)
+    let result = PlaylistEditor.removing([tracks[1].id, tracks[2].id], from: tracks)
+    #expect(result.playlist.map(\.title) == ["a", "d"])
+    #expect(result.nextSelection == tracks[3].id)
+    let tail = PlaylistEditor.removing([tracks[3].id], from: tracks)
+    #expect(tail.nextSelection == tracks[2].id)
+    #expect(PlaylistEditor.removing(Set(tracks.map(\.id)), from: tracks).nextSelection == nil)
+}
+
+@Test func renamesTrackAndEmptyNameRestoresOriginal() throws {
+    var tracks = [track("original")]
+    tracks[0].resolvedTitle = "Website Title"
+    tracks = PlaylistEditor.renaming(tracks[0].id, to: "  My Name ", in: tracks)
+    #expect(tracks[0].title == "My Name")
+    let decoded = try JSONDecoder().decode([Track].self, from: JSONEncoder().encode(tracks))
+    #expect(decoded[0].title == "My Name")
+    tracks = PlaylistEditor.renaming(tracks[0].id, to: " ", in: tracks)
+    #expect(tracks[0].title == "Website Title")
+}
+
+@Test func decodesTracksSavedBeforeCustomTitles() throws {
+    let json = #"[{"id":"00000000-0000-4000-8000-000000000001","url":"file:///tmp/old.mp3"}]"#
+    let tracks = try JSONDecoder().decode([Track].self, from: Data(json.utf8))
+    #expect(tracks[0].customTitle == nil)
+    #expect(tracks[0].title == "old")
+}
+
+@Test func nextTrackWrapsOnlyWhenRepeatingPlaylist() {
+    let tracks = ["a", "b", "c"].map(track)
+    #expect(PlaylistEditor.nextID(after: tracks[0].id, in: tracks, wrapping: false) == tracks[1].id)
+    #expect(PlaylistEditor.nextID(after: tracks[2].id, in: tracks, wrapping: false) == nil)
+    #expect(PlaylistEditor.nextID(after: tracks[2].id, in: tracks, wrapping: true) == tracks[0].id)
+    #expect(PlaylistEditor.nextID(after: UUID(), in: tracks, wrapping: true) == nil)
+}
+
+@Test func repeatModeCyclesAndControlsAutoAdvance() {
+    #expect(RepeatMode.off.next == .all && RepeatMode.all.next == .one && RepeatMode.one.next == .off)
+    let tracks = ["a", "b"].map(track)
+    #expect(PlaylistEditor.autoAdvanceID(after: tracks[1].id, in: tracks, mode: .off) == nil)
+    #expect(PlaylistEditor.autoAdvanceID(after: tracks[1].id, in: tracks, mode: .all) == tracks[0].id)
+    #expect(PlaylistEditor.autoAdvanceID(after: tracks[0].id, in: tracks, mode: .one) == tracks[0].id)
+}
