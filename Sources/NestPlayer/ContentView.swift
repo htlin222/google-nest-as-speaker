@@ -9,6 +9,7 @@ struct ContentView: View {
     @State private var showSMB = false
     @State private var chooseFolderAfterSMB = false
     @State private var showRemote = false
+    @State private var showAlarms = false
     @State private var linkText = ""
     @State private var isSeeking = false
     @State private var scrubPosition = 0.0
@@ -135,6 +136,7 @@ struct ContentView: View {
             }
         }) { SMBConnectionSheet { chooseFolderAfterSMB = true } }
         .sheet(isPresented: $showRemote) { PhoneRemoteSheet() }
+        .sheet(isPresented: $showAlarms) { AlarmSheet() }
         .alert(playlistNaming?.title ?? "", isPresented: Binding(get: { playlistNaming != nil }, set: { if !$0 { playlistNaming = nil } })) {
             TextField("Playlist name", text: $playlistNameText)
             Button(playlistNaming == .create ? "Create" : "Rename") {
@@ -427,6 +429,11 @@ struct ContentView: View {
             }
             .help("Find Cast speakers")
 
+            Button { showAlarms = true } label: {
+                Label("Alarms", systemImage: model.nextAlarm() == nil ? "alarm" : "alarm.fill")
+            }
+            .help(alarmHelp)
+
             Button { showRemote = true } label: { Label("Phone Remote", systemImage: "qrcode") }
                 .help("Control from iPhone over your local network")
 
@@ -435,6 +442,12 @@ struct ContentView: View {
                 Button("Forget Website Browser Access") { model.forgetWebsiteSessions() }
             } label: { Image(systemName: "ellipsis.circle") }
         }
+    }
+
+    private var alarmHelp: String {
+        guard let next = model.nextAlarm() else { return "Alarms" }
+        let name = model.library.playlists.first { $0.id == next.alarm.playlistID }?.name ?? "Missing playlist"
+        return "Next alarm: \(next.date.formatted(.dateTime.weekday().hour().minute())) · \(name)"
     }
 
     private func pasteLink() {

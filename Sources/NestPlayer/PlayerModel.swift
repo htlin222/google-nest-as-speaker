@@ -10,6 +10,7 @@ final class PlayerModel {
     private static let devicesDefaultsKey = "cachedCastDevices"
     private static let playlistRecordsKey = "playlistRecordsV2"
     private static let libraryKey = "playlistLibraryV3"
+    private static let alarmsKey = "alarmsV1"
 
     var library = PlaylistLibrary(playlists: [])
     /// Tracks of the playlist shown in the sidebar; playback always follows it.
@@ -50,6 +51,11 @@ final class PlayerModel {
     }
     var statusDetail = "Starting Cast service…"
     private(set) var sleepTimer: SleepTimerChoice?
+    var alarms: [Alarm] = [] {
+        didSet {
+            if let data = try? JSONEncoder().encode(alarms) { UserDefaults.standard.set(data, forKey: Self.alarmsKey) }
+        }
+    }
     /// Seconds until the sleep timer stops playback; nil while unknown (e.g. end of track not playing).
     private(set) var sleepRemaining: Double?
     var isDropTarget = false
@@ -77,6 +83,8 @@ final class PlayerModel {
     @ObservationIgnored private var pendingResume: (generation: Int, seconds: Double)?
     @ObservationIgnored private var lastResumeSave = Date.distantPast
     @ObservationIgnored private var sleepDeadline: Date?
+    @ObservationIgnored private var alarmTask: Task<Void, Never>?
+    @ObservationIgnored private var lastAlarmFire: [Alarm.ID: Date] = [:]
     @ObservationIgnored private var sleepTask: Task<Void, Never>?
     /// Speaker volume before the fade began; restored when the timer ends or is cancelled.
     @ObservationIgnored private var fadeOriginalVolume: Double?
@@ -167,6 +175,16 @@ final class PlayerModel {
         }
         selectedTrackID = resumeSelection()
         configureLocalPlayer(for: selectedTrack)
+        if let data = UserDefaults.standard.data(forKey: Self.alarmsKey),
+           let saved = try? JSONDecoder().decode([Alarm].self, from: data) {
+            alarms = saved
+        }
+        alarmTask = Task { [weak self] in
+            while !Task.isCancelled {
+                self?.checkAlarms(now: Date())
+                try? await Task.sleep(for: .seconds(15))
+            }
+        }
 
         createdBackend?.setEventHandler { [weak self] message in
             Task { @MainActor in self?.consume(message) }
@@ -447,6 +465,55 @@ final class PlayerModel {
         sleepRemaining = nil
     }
 
+    // MARK: Alarms
+
+    func addAlarm() {
+        alarms.append(Alarm(playlistID: library.currentID))
+    }
+
+    func deleteAlarm(_ id: Alarm.ID) {
+        alarms.removeAll { $0.id == id }
+    }
+
+    /// Soonest upcoming alarm across all enabled ones, for the toolbar and sheet.
+    func nextAlarm(after now: Date = Date()) -> (alarm: Alarm, date: Date)? {
+        alarms.compactMap { alarm in AlarmSchedule.nextFire(alarm, after: now).map { (alarm, $0) } }
+            .min { $0.1 < $1.1 }
+    }
+
+    private func checkAlarms(now: Date) {
+        for alarm in alarms {
+            guard let due = AlarmSchedule.dueFire(alarm, now: now, lastFired: lastAlarmFire[alarm.id]) else { continue }
+            lastAlarmFire[alarm.id] = due
+            fire(alarm)
+        }
+    }
+
+    /// Starts the alarm's playlist from its first track; never interrupts playback or changes volume.
+    private func fire(_ alarm: Alarm) {
+        let time = String(format: "%02d:%02d", alarm.hour, alarm.minute)
+        guard !hasSession else {
+            statusDetail = "Alarm \(time) skipped · already playing"
+            return
+        }
+        guard library.playlists.contains(where: { $0.id == alarm.playlistID }) else {
+            statusDetail = "Alarm \(time) skipped · its playlist was deleted"
+            return
+        }
+        selectPlaylist(alarm.playlistID)
+        guard let first = playlist.first else {
+            statusDetail = "Alarm \(time) skipped · \(currentPlaylist.name) is empty"
+            return
+        }
+        guard canPlay else {
+            statusDetail = "Alarm \(time) skipped · no Cast speaker available"
+            return
+        }
+        selectedTrackID = first.id
+        requestPlayback(of: first)
+        statusDetail = "Alarm \(time) · playing \(currentPlaylist.name)"
+    }
+
     // MARK: Playlists
 
     /// Switching stops playback; the position is kept so switching back resumes it.
@@ -646,6 +713,7 @@ final class PlayerModel {
 
     func shutdown() {
         sleepTask?.cancel()
+        alarmTask?.cancel()
         if let activeTrack { recordResume(activeTrack.id, at: currentTime) }
         savePlaylist()
         generation += 1
