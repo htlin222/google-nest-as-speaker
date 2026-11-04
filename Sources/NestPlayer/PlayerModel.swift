@@ -1021,6 +1021,19 @@ final class PlayerModel {
         }
     }
 
+    /// Unpairs every phone, including Home Screen remotes; they must enter the new code.
+    func resetRemotePairing() {
+        guard let backend else { return }
+        Task {
+            do {
+                let result = try await backend.request("remoteReset")
+                remoteURL = result.remoteURL.flatMap(URL.init(string:))
+                pairingCode = result.pairingCode ?? ""
+                statusDetail = "Phone pairing reset · paired phones must reconnect"
+            } catch { statusDetail = "Phone remote: \(error.localizedDescription)" }
+        }
+    }
+
     func loadRemoteInfo() {
         guard let backend else { return }
         Task {
@@ -1040,7 +1053,12 @@ final class PlayerModel {
             speaker: selectedDeviceName, playing: phase == .playing,
             position: currentTime.isFinite ? currentTime : 0,
             duration: duration.isFinite ? duration : 0, volume: volume,
-            macAudio: localAudioEnabled, tracks: tracks
+            macAudio: localAudioEnabled, tracks: tracks,
+            playlists: library.playlists.map {
+                RemotePlaylist(id: $0.id.uuidString, name: $0.name, current: $0.id == library.currentID)
+            },
+            repeat: repeatMode.rawValue,
+            sleep: sleepTimer.map { RemoteSleep(choice: $0.remoteValue, remaining: sleepRemaining.map { $0.rounded(.up) }) }
         )
         return (try? JSONEncoder().encode(state)).flatMap { String(data: $0, encoding: .utf8) } ?? "{}"
     }
@@ -1063,6 +1081,12 @@ final class PlayerModel {
         case "addLink": addLinks(from: value)
         case "playTrack":
             if let id = UUID(uuidString: value), let track = playlist.first(where: { $0.id == id }) { play(track: track) }
+        case "selectPlaylist":
+            if let id = UUID(uuidString: value) { selectPlaylist(id) }
+        case "repeat":
+            if let mode = RepeatMode(rawValue: value) { repeatMode = mode }
+        case "sleep":
+            setSleepTimer(SleepTimerChoice(remoteValue: value))
         default: break
         }
     }
@@ -1089,4 +1113,18 @@ private struct RemoteState: Encodable {
     let volume: Double
     let macAudio: Bool
     let tracks: [RemoteTrack]
+    let playlists: [RemotePlaylist]
+    let `repeat`: String
+    let sleep: RemoteSleep?
+}
+
+private struct RemotePlaylist: Encodable {
+    let id: String
+    let name: String
+    let current: Bool
+}
+
+private struct RemoteSleep: Encodable {
+    let choice: String
+    let remaining: Double?
 }

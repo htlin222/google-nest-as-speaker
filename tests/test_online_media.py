@@ -145,6 +145,20 @@ class RemoteTests(unittest.TestCase):
             self.assertEqual(requests.post(self.base + "/api/pair", json={"code": "wrong"}, timeout=3).status_code, 403)
         self.assertEqual(requests.post(self.base + "/api/pair", json={"code": "wrong"}, timeout=3).status_code, 429)
 
+    def test_remote_actions_include_playlist_repeat_and_sleep(self) -> None:
+        paired = requests.post(self.base + "/api/pair", json={"code": self.remote.code}, timeout=3)
+        headers = {"Authorization": "Bearer " + paired.json()["token"]}
+        for action, value in [("selectPlaylist", "id"), ("repeat", "all"), ("sleep", "30")]:
+            response = requests.post(self.base + "/api/command", headers=headers, json={"action": action, "value": value}, timeout=3)
+            self.assertEqual(response.status_code, 200)
+        self.assertEqual([fields["action"] for _, fields in self.events], ["selectPlaylist", "repeat", "sleep"])
+
+    @unittest.skipUnless(shutil.which("node"), "Node is required to parse the remote page script")
+    def test_remote_page_script_parses(self) -> None:
+        script = re.search(r"<script>(.*)</script>", remote_control.PAGE, re.S).group(1)
+        subprocess.run([shutil.which("node"), "-e", "new Function(require('node:fs').readFileSync(0,'utf8'))"],
+                       input=script, text=True, check=True)
+
     @unittest.skipUnless(shutil.which("node"), "Node is required for the browser-handler regression")
     def test_transport_handlers_work_with_native_button_command_property(self) -> None:
         handlers = re.findall(r'onclick="([^"]+)"', remote_control.PAGE)
@@ -158,6 +172,43 @@ for(const body of handlers.filter(h=>!h.startsWith('disconnect'))){
 if(JSON.stringify(seen)!==JSON.stringify(['previous','toggle','next','stop','playTrack']))process.exit(1);
 '''
         subprocess.run([shutil.which("node"), "-e", script], input=json.dumps(handlers), text=True, check=True)
+
+
+class PersistentPairingTests(unittest.TestCase):
+    def make(self, path):
+        with mock.patch.dict("os.environ", {"NEST_PLAYER_REMOTE_PORT": "0"}):
+            return remote_control.RemoteController(lambda *_a, **_k: None, token_path=path)
+
+    def test_token_survives_restart_until_reset(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "state" / "remote-token"
+            first = self.make(path)
+            token = first.token
+            first.close()
+            self.assertEqual(path.stat().st_mode & 0o777, 0o600)
+            second = self.make(path)
+            try:
+                self.assertEqual(second.token, token)
+                second.reset()
+                self.assertNotEqual(second.token, token)
+                self.assertEqual(path.read_text(), second.token)
+                base = f"http://127.0.0.1:{second.server.server_address[1]}"
+                stale = requests.get(base + "/api/state", headers={"Authorization": "Bearer " + token}, timeout=3)
+                self.assertEqual(stale.status_code, 401)
+                self.assertRegex(second.code, r"^\d{6}$")
+            finally:
+                second.close()
+
+    def test_unreadable_or_short_token_file_is_replaced(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "remote-token"
+            path.write_text("short")
+            remote = self.make(path)
+            try:
+                self.assertGreaterEqual(len(remote.token), 32)
+                self.assertEqual(path.read_text(), remote.token)
+            finally:
+                remote.close()
 
 
 if __name__ == "__main__":

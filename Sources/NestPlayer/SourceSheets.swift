@@ -96,7 +96,7 @@ struct PhoneRemoteSheet: View {
                     .background(.white, in: RoundedRectangle(cornerRadius: 14))
                 Text(manualURL).font(.body.monospaced()).textSelection(.enabled)
                 Text("Manual pairing code: \(model.pairingCode)").font(.headline.monospacedDigit())
-                Text("Keep this Mac awake and Nest Player open. Use the same LAN or Wi-Fi. The QR link grants player control for this app session.")
+                Text("Keep this Mac awake and Nest Player open. Use the same LAN or Wi-Fi. A paired phone stays paired across launches — on iPhone, Share → Add to Home Screen, open it and enter the code once.")
                     .font(.caption).foregroundStyle(.secondary).multilineTextAlignment(.center)
                 HStack {
                     Button("Copy Remote Link", systemImage: "doc.on.doc") {
@@ -104,6 +104,10 @@ struct PhoneRemoteSheet: View {
                         NSPasteboard.general.setString(url.absoluteString, forType: .string)
                     }
                     Button("Open in Browser", systemImage: "safari") { NSWorkspace.shared.open(url) }
+                    Button("Reset Pairing", systemImage: "arrow.triangle.2.circlepath", role: .destructive) {
+                        model.resetRemotePairing()
+                    }
+                    .help("Disconnect every paired phone, e.g. after losing one")
                 }
             } else {
                 ProgressView("Starting the phone controller…").frame(height: 220)
