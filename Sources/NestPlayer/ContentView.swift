@@ -208,6 +208,15 @@ struct ContentView: View {
                             trackMenu(for: [track.id])
                         }
                     }
+                if let timer = model.sleepTimer {
+                    Label(
+                        model.sleepRemaining.map { "Stops in \(TimeText.format($0.rounded(.up)))" }
+                            ?? "Stops after \(timer == .endOfTrack ? "this track" : "timer")",
+                        systemImage: "moon.zzz.fill"
+                    )
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.tint)
+                }
                 Text(model.statusDetail)
                     .font(.callout)
                     .foregroundStyle(model.phase.isFailure ? Color.red : Color.secondary)
@@ -333,6 +342,32 @@ struct ContentView: View {
             .font(.title2)
             .help("\(model.repeatMode.label) — click to change")
             .accessibilityLabel(model.repeatMode.label)
+
+            Menu {
+                ForEach(SleepTimerChoice.presets, id: \.self) { minutes in
+                    Button("\(minutes) minutes") { model.setSleepTimer(.minutes(minutes)) }
+                }
+                Button("End of current track") { model.setSleepTimer(.endOfTrack) }
+                if model.sleepTimer != nil {
+                    Divider()
+                    Button("Turn Off Sleep Timer") { model.setSleepTimer(nil) }
+                }
+            } label: {
+                Image(systemName: model.sleepTimer == nil ? "moon.zzz" : "moon.zzz.fill")
+                    .font(.system(size: 17, weight: .semibold))
+                    .frame(width: 34, height: 34)
+                    .foregroundStyle(model.sleepTimer != nil ? Color.white : Color.primary)
+                    .background(
+                        model.sleepTimer != nil ? AnyShapeStyle(Color.accentColor) : AnyShapeStyle(.quaternary),
+                        in: RoundedRectangle(cornerRadius: 8)
+                    )
+            }
+            .menuStyle(.button)
+            .buttonStyle(.plain)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help(model.sleepTimer.map { "Sleep timer: \($0.label) — fades out over the last 30 s" } ?? "Sleep timer")
+            .accessibilityLabel("Sleep timer")
         }
     }
 
